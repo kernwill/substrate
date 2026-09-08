@@ -216,6 +216,32 @@ func (f FRRRequirement) ControlIDs() ([]ControlID, error) {
 	return ParseControlIDs(f.Controls)
 }
 
+// EffectiveForce returns f's force level for a specific certification
+// class: the class-specific force from VariesByClass when f varies by
+// class, otherwise f's uniform Force. The zero value means f doesn't
+// apply to class at all (e.g. a rule whose VariesByClass has no "a"
+// entry, queried for ClassA).
+func (f FRRRequirement) EffectiveForce(class ClassName) ForceLevel {
+	if f.VariesByClass == nil {
+		return f.Force
+	}
+	var level *FRRRequirementLevel
+	switch class {
+	case ClassA:
+		level = f.VariesByClass.A
+	case ClassB:
+		level = f.VariesByClass.B
+	case ClassC:
+		level = f.VariesByClass.C
+	case ClassD:
+		level = f.VariesByClass.D
+	}
+	if level == nil {
+		return ""
+	}
+	return level.Force
+}
+
 // FRRVariesByClass holds per-class requirement levels when a rule's force
 // or statement differs by certification class.
 type FRRVariesByClass struct {

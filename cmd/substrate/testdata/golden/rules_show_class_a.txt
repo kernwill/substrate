@@ -1,0 +1,48 @@
+ID	FORCE	NAME
+CCM-QTR-MTG	MAY	Quarterly Review Meeting
+CDS-CSO-AVR	SHOULD	Availability Reporting
+CDS-CSO-PSM	MAY	Per-Service Certification Materials
+CMU-CSO-UVM	MAY	Using Validated Cryptographic Modules
+CPO-CSO-OSA	MAY	Overall Summary of Assessment in Certification Package
+CPO-CSX-CPM	SHOULD	Certification Package Maintenance for 20x
+FRC-APP-AFC	MUST	Applying for FedRAMP Certification
+FRC-APP-FCP	MUST	Fresh FedRAMP Certification Package
+FRC-APP-FIA	MAY	Fresh Independent Assessment
+FRC-APP-MLF	MUST	Marketplace Listing First
+FRC-APP-NTP	MUST NOT	No Third-Party Applicants
+FRC-APP-USA	MAY	Updating Stale Assessments
+FRC-CCL-DCC	MUST	Downgrading Certification Class
+FRC-CCL-DNP	SHOULD	Downgrade Notification Period
+FRC-CCL-UCC	MUST	Upgrading Certification Class
+FRC-CLA-ASF	MUST	Approved Alternative Security Frameworks
+FRC-CLA-EAM	MUST	External Assessment Materials
+FRC-CLA-IVV	MAY	Optional Independent Verification and Validation
+FRC-CLA-MFR	MUST	Mandatory FedRAMP Rules for Class A
+FRC-CLA-OFR	MAY	Address Optional FedRAMP Rules for Class A
+FRC-CLA-RFR	SHOULD	Recommended FedRAMP Rules for Class A
+FRC-CSO-FCP	MUST	FedRAMP Certification Profile
+FRC-CSO-JSN	MUST	FedRAMP JSON Schemas
+FRC-CSO-MRA	MUST	Maintain Responsibility and Accountability
+FRC-CSO-PKG	MUST	FedRAMP Certification Package
+FRC-CSO-POP	MUST NOT	Pick One Program Certification Type
+FRC-CSX-MOT	MAY	Metrics Over Time for Key Security Indicators
+FRC-CSX-VVK	MAY	Automated Verification and Validation of Key Security Indicators
+FRC-CSX-VVR	MAY	Automated Verification and Validation of FedRAMP Rules
+IEC-CSO-FIR	MUST	Final Incident Report
+IEC-CSO-IIR	SHOULD	Initial Incident Report
+IEC-CSO-OIR	SHOULD	Ongoing Incident Reports
+IVV-CSO-FIA	MAY	FedRAMP Independent Assessments
+IVV-CSX-AIA	MUST	Annual Independent Assessments for 20x
+MKT-CSO-MLR	MUST	Marketplace Listing Requirements
+MKT-CSO-PML	MUST	Provider Marketplace Listing Requests
+MKT-FRP-SOF	MUST NOT	Scope of FedRAMP
+SDR-CSX-KMT	MAY	Key Security Indicator Metrics
+VDR-TFR-PCD	SHOULD	Persistently Complete Detection
+VDR-TFR-PDD	SHOULD	Persistent Drift Detection
+VDR-TFR-PSD	SHOULD	Persistent Sample Detection
+VDR-TFR-PVR	SHOULD	Mitigation and Remediation Expectations
+VER-TFR-EVU	SHOULD	Evaluate Vulnerabilities Quickly
+VER-TFR-IRI	MAY	Internet-Reachable Incidents
+VER-TFR-MRH	MAY	Historical Activity
+VER-TFR-NRI	MAY	Non-Internet-Reachable Incidents
+46 rules

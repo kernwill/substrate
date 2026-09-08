@@ -1,0 +1,195 @@
+ID	FORCE	NAME
+AFC-CSO-ACK	SHOULD	Acknowledge Receipt
+AFC-CSO-CRA	MUST	Complete Required Actions
+AFC-CSO-EMR	MUST	Emergency Message Routing
+AFC-CSO-IMA	SHOULD	Important Message Actions
+AFC-CSO-INB	MUST	Maintain a FedRAMP Security Inbox
+AFC-CSO-NOC	MUST	Notification of Changes
+AFC-CSO-RCV	MUST	Receive Email Without Disruption
+AFC-CSO-TFG	MUST	Trust @fedramp.gov and @gsa.gov
+AFC-FRP-CDS	MUST	Criticality Designators
+AFC-FRP-COR	MUST	Explain Corrective Actions
+AFC-FRP-ERT	MUST	Elevated Reaction Timeframes
+AFC-FRP-PNT	MUST	Public Notice of Emergency Tests
+AFC-FRP-RPM	MAY	Reaction Metrics
+AFC-FRP-RQA	MUST	Required Actions
+AFC-FRP-UFS	MUST	Use FedRAMP_Security Email in Emergencies
+AFC-FRP-VRE	MUST	Verified Emails
+CCM-AGM-CSC	SHOULD	Consider Security Category
+CCM-AGM-ROR	MUST	Review Ongoing Reports
+CCM-OCR-AFS	MUST	Anonymized Feedback Summary
+CCM-OCR-AVL	MUST	Report Availability
+CCM-OCR-FBM	MUST	Feedback Mechanism
+CCM-OCR-LSI	MUST NOT	Limit Sensitive Information
+CCM-OCR-NRD	MUST	Next Report Date
+CCM-OCR-RPS	MAY	Responsible Public Certification Report Sharing
+CCM-OCR-SOR	SHOULD	Spread Out Reports
+CCM-QTR-ACT	SHOULD	Additional Content
+CCM-QTR-MTG	MUST	Quarterly Review Meeting
+CCM-QTR-NID	MUST NOT	No Irresponsible Disclosure
+CCM-QTR-NRD	MUST	Next Review Date
+CCM-QTR-REG	MUST	Meeting Registration Info
+CCM-QTR-RTP	SHOULD NOT	Restrict Third Parties
+CCM-QTR-RTR	SHOULD	Record/Transcribe Reviews
+CCM-QTR-SAR	SHOULD	Schedule Around Reports
+CCM-QTR-SCR	MAY	Share Content Responsibly
+CCM-QTR-SRR	MAY	Share Recordings Responsibly
+CDS-CSF-TCM	MUST	Trust Center Migration
+CDS-CSO-AVR	MUST	Availability Reporting
+CDS-CSO-CBF	MUST	Consistency Between Formats
+CDS-CSO-FID	MUST	Always Include FedRAMP ID
+CDS-CSO-FRC	MUST	FedRAMP Certification Reports
+CDS-CSO-HAD	MUST	Historical FedRAMP Certification Data
+CDS-CSO-IRP	MUST	Include Relevant Policies
+CDS-CSO-PSM	MAY	Per-Service Certification Materials
+CDS-CSO-PUB	MUST	Public Information
+CDS-CSO-RIS	MUST	Responsible Information Sharing
+CDS-CSO-RPS	MAY	Responsible Public Package Sharing
+CDS-CSO-SVC	MUST	Public Service List
+CDS-CSO-UTC	MUST	Use Trust Centers
+CDS-TRC-AAI	MUST	Agency Access Inventory
+CDS-TRC-ACL	MUST	Access Logging
+CDS-TRC-HMR	SHOULD	Human and Machine-Readable Certification Data
+CDS-TRC-PAC	MUST	Programmatic Access
+CDS-TRC-SSM	SHOULD	Self-Service Access Management
+CDS-TRC-USH	MUST	Uninterrupted Sharing
+CDS-UTC-AAD	MUST	Agency Access Denial
+CDS-UTC-AGA	SHOULD	Agency Access
+CMU-CSO-CAT	SHOULD	Configuration of Agency Tenants
+CMU-CSO-CMD	MUST	Cryptographic Module Documentation
+CMU-CSO-UVM	SHOULD	Using Validated Cryptographic Modules
+CPO-CSF-CPM	MUST	Certification Package Maintenance for Rev5
+CPO-CSO-MTD	MUST	Certification Package Overview Metadata
+CPO-CSO-OSA	MUST	Overall Summary of Assessment in Certification Package
+CPO-CSO-OVR	MUST	Overview of the Cloud Service Offering
+CPO-CSX-CPM	MUST	Certification Package Maintenance for 20x
+FRC-APP-AFC	MUST	Applying for FedRAMP Certification
+FRC-APP-FCP	MUST	Fresh FedRAMP Certification Package
+FRC-APP-FIA	MUST	Fresh Independent Assessment
+FRC-APP-MLF	MUST	Marketplace Listing First
+FRC-APP-NTP	MUST NOT	No Third-Party Applicants
+FRC-APP-USA	MAY	Updating Stale Assessments
+FRC-APS-ATO	MUST	Agency Authorization to Operate
+FRC-CCL-DCC	MUST	Downgrading Certification Class
+FRC-CCL-DNP	SHOULD	Downgrade Notification Period
+FRC-CCL-UCC	MUST	Upgrading Certification Class
+FRC-CSF-ACP	MUST	Assign Control Parameters
+FRC-CSF-BSL	MUST	FedRAMP Rev5 Baselines
+FRC-CSF-FFG	MUST	Follow FedRAMP Rev5 Controls Guidance
+FRC-CSF-RDY	MUST	FedRAMP Ready Conversion
+FRC-CSO-FCP	MUST	FedRAMP Certification Profile
+FRC-CSO-JSN	MUST	FedRAMP JSON Schemas
+FRC-CSO-MRA	MUST	Maintain Responsibility and Accountability
+FRC-CSO-PKG	MUST	FedRAMP Certification Package
+FRC-CSO-POP	MUST NOT	Pick One Program Certification Type
+FRC-CSX-MAS	SHOULD	Application within MAS
+FRC-CSX-MOT	MUST	Metrics Over Time for Key Security Indicators
+FRC-CSX-VVK	MUST	Automated Verification and Validation of Key Security Indicators
+FRC-CSX-VVR	SHOULD	Automated Verification and Validation of FedRAMP Rules
+IEC-CSO-AIR	SHOULD	Automated Incident Reporting
+IEC-CSO-DPR	MUST	Default PAIN Rating
+IEC-CSO-EFI	SHOULD	Estimate Federal Impact
+IEC-CSO-EFR	MUST	Evaluate FedRAMP Reportability
+IEC-CSO-FIR	MUST	Final Incident Report
+IEC-CSO-IIR	MUST	Initial Incident Report
+IEC-CSO-OIR	MUST	Ongoing Incident Reports
+IEC-FRP-ORV	MUST	Ongoing Review
+IVV-CSF-ACF	MUST	Assessment of Rev5 Controls with Findings
+IVV-CSF-AIA	MUST	Annual Independent Assessments for Rev5
+IVV-CSF-MCA	MUST	Mandatory Control Assessment
+IVV-CSF-PCA	SHOULD	Preferred Control Assessment
+IVV-CSO-DUS	MUST	Document Use of Representative Samples
+IVV-CSO-FIA	MUST	FedRAMP Independent Assessments
+IVV-CSO-ICP	MUST	Inclusion in Certification Package
+IVV-CSO-RAA	MAY	Receiving Assessor Advice
+IVV-CSO-SEE	MUST	Supply Evidence of Effectiveness
+IVV-CSO-SEI	MUST	Supply Evidence of Implementation
+IVV-CSO-STE	SHOULD	Supply Technical Explanations
+IVV-CSO-USR	MAY	Use Representative Samples
+IVV-CSX-AIA	MUST	Annual Independent Assessments for 20x
+IVV-IAS-EPX	SHOULD	Engage Provider Experts
+IVV-IAS-OSA	MUST	Overall Summary of Assessment
+IVV-IAS-SHA	MAY	Sharing Advice
+IVV-IAS-SUM	MUST	Assessment Summary
+IVV-IAS-VEF	MUST	Validate Effectiveness
+IVV-IAS-VIM	MUST	Verify Implementation
+IVV-IAS-VIP	MUST	Verify Inclusion in Certification Package
+MAS-CSO-FLO	MUST	Information Flows and Security Categories
+MAS-CSO-IIR	MUST	Identify Information Resources
+MAS-CSO-MDI	MUST	Metadata Inclusion
+MAS-CSO-SUP	MAY	Supplemental Information
+MAS-CSO-TPR	MUST	Third-Party Information Resources
+MKT-CSO-MLR	MUST	Marketplace Listing Requirements
+MKT-CSO-PML	MUST	Provider Marketplace Listing Requests
+MKT-FRP-SOF	MUST NOT	Scope of FedRAMP
+SCG-CSO-AUP	MUST	Use Instructions
+SCG-CSO-PUB	SHOULD	Public Secure Configuration Guidance
+SCG-CSO-RSC	MUST	Recommended Secure Configuration
+SCG-CSO-SDF	SHOULD	Secure Defaults
+SCG-ENH-API	SHOULD	API Capability
+SCG-ENH-CMP	SHOULD	Comparison Capability
+SCG-ENH-EXP	SHOULD	Export Capability
+SCG-ENH-MRG	SHOULD	Machine-Readable Guidance
+SCG-ENH-VRH	SHOULD	Versioning and Release History
+SCN-ADP-NTF	MUST	Notification Requirements
+SCN-CSO-ARI	MAY	Additional Relevant Information
+SCN-CSO-EMG	MAY	Emergency Changes
+SCN-CSO-EVA	MUST	Evaluate Changes
+SCN-CSO-HIS	MUST	Historical Notifications
+SCN-CSO-HRM	MUST	Human and Machine-Readable Notifications
+SCN-CSO-INF	MUST	Required Information
+SCN-CSO-MAR	MUST	Maintain Audit Records
+SCN-CSO-NOM	MAY	Notification Mechanisms
+SCN-FRP-CAP	MAY	Corrective Action Plan Conditions
+SCN-RTR-NNR	SHOULD NOT	No Notification Requirements
+SCN-TRF-NAF	MUST	Notification After Finishing
+SCN-TRF-NAV	MUST	Notification After Verification
+SCN-TRF-NFP	MUST	Notification of Final Plans
+SCN-TRF-NIP	MUST	Notification of Initial Plans
+SCN-TRF-TPR	SHOULD	Third-Party Review
+SCN-TRF-UPD	MUST	Update Documentation
+SDR-CSF-CTF	MUST	Rev5 Controls
+SDR-CSO-FRR	MUST	FedRAMP Rules
+SDR-CSO-MTD	MUST	Security Decision Record Metadata
+SDR-CSX-KMT	MUST	Key Security Indicator Metrics
+SDR-CSX-KSI	MUST	Key Security Indicators
+VDR-CSO-ADT	SHOULD	Automate Detection
+VDR-CSO-AKE	SHOULD NOT	Avoid KEVs
+VDR-CSO-DAC	SHOULD	Detect After Changes
+VDR-CSO-DET	MUST	Vulnerability Detection
+VDR-CSO-DFR	SHOULD	Design For Resilience
+VDR-CSO-FAV	MUST	Failures Are Vulnerabilities
+VDR-CSO-MSP	SHOULD NOT	Maintain Security
+VDR-CSO-RES	MUST	Vulnerability Response
+VDR-CSO-SIR	MAY	Sampling
+VDR-TFR-KEV	SHOULD	Remediate KEVs
+VDR-TFR-NMV	MUST	Non-Machine Verification and Validation
+VDR-TFR-PCD	SHOULD	Persistently Complete Detection
+VDR-TFR-PDD	SHOULD	Persistent Drift Detection
+VDR-TFR-PSD	SHOULD	Persistent Sample Detection
+VDR-TFR-PVR	SHOULD	Mitigation and Remediation Expectations
+VDR-TFR-RMN	SHOULD	Remaining Vulnerabilities
+VER-AGM-MAP	SHOULD	Maintain Agency Plans of Action and Milestones
+VER-AGM-RVR	SHOULD	Review Vulnerability Reports
+VER-EVA-AIA	MUST	Assume It's Automatable
+VER-EVA-EFA	SHOULD	Evaluation Factors
+VER-EVA-EFP	SHOULD	Evaluate False Positives
+VER-EVA-EIR	MUST	Evaluate Internet-Reachability
+VER-EVA-ELX	MUST	Evaluate Exploitability
+VER-EVA-EPA	MUST	Estimate Potential Agency Impact
+VER-EVA-GRV	SHOULD	Group Vulnerabilities
+VER-FRP-ADV	MAY	Sensitive Details
+VER-FRP-ARP	MAY	Additional Requirements
+VER-RPT-AVI	MUST	Accepted Vulnerability Info
+VER-RPT-HLO	SHOULD	High-Level Overviews
+VER-RPT-NID	MUST NOT	Responsible Disclosure
+VER-RPT-PER	MUST	Persistent Reporting
+VER-RPT-RPD	MAY	Responsible Public Disclosure
+VER-RPT-VDT	MUST	Vulnerability Details
+VER-TFR-EVU	SHOULD	Evaluate Vulnerabilities Quickly
+VER-TFR-IRI	SHOULD	Internet-Reachable Incidents
+VER-TFR-MAV	MUST	Mark Accepted Vulnerabilities
+VER-TFR-MHR	MUST	Monthly Activity Report
+VER-TFR-MRH	SHOULD	Historical Activity
+VER-TFR-NRI	MAY	Non-Internet-Reachable Incidents
+193 rules

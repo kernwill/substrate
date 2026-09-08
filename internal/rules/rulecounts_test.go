@@ -129,35 +129,8 @@ func providerRuleCountUnder20x(t *testing.T, docKey string, doc FRRDocument) int
 	return total
 }
 
-// ruleClasses returns which certification classes rule applies to.
-//
-// A rule that varies by class (rule.VariesByClass != nil) states its own
-// per-class scope explicitly, and that's the more specific signal: the
-// vendored dataset has 12 rules (e.g. CCM-QTR-MTG, IVV-CSO-FIA) that
-// define an "a" entry in varies_by_class even though their containing
-// subset's blanket applicability.classes lists only B/C/D - explicit,
-// optional Class A guidance the subset-level field doesn't capture. A
-// uniform rule (no varies_by_class) has no rule-level signal at all, so
-// it inherits the subset's classes.
-func ruleClasses(rule FRRRequirement, subsetClasses []ClassName) []ClassName {
-	if rule.VariesByClass == nil {
-		return subsetClasses
-	}
-	var classes []ClassName
-	if rule.VariesByClass.A != nil {
-		classes = append(classes, ClassA)
-	}
-	if rule.VariesByClass.B != nil {
-		classes = append(classes, ClassB)
-	}
-	if rule.VariesByClass.C != nil {
-		classes = append(classes, ClassC)
-	}
-	if rule.VariesByClass.D != nil {
-		classes = append(classes, ClassD)
-	}
-	return classes
-}
+// ruleClasses (package query.go) implements the same rule-level-overrides-
+// subset-level logic this test relies on for the per-class breakdown.
 
 // TestRuleCountsDocMatchesDataset recomputes every count docs/rule-counts.md
 // claims directly from the vendored dataset. If someone updates the
