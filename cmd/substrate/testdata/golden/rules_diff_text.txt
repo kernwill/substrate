@@ -1,0 +1,15 @@
+from test-v1 to test-v2
+SECTION	CHANGE	ID
+CTL	removed	AC-01
+CTL	modified	AC-02
+CTL	added	AC-03
+FRD	removed	FRD-AAA
+FRD	modified	FRD-BBB
+FRD	added	FRD-CCC
+FRR	removed	TST-CSO-AAA
+FRR	modified	TST-CSO-BBB
+FRR	added	TST-CSO-CCC
+KSI	removed	KSI-TST-AAA
+KSI	modified	KSI-TST-BBB
+KSI	added	KSI-TST-CCC
+4 added, 4 removed, 4 modified

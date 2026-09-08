@@ -1,0 +1,120 @@
+{
+  "info": {
+    "title": "Synthetic test dataset B",
+    "description": "Minimal hand-authored fixture for substrate rules diff tests. Not real FedRAMP content.",
+    "version": "test-v2",
+    "last_updated": "2026-02-01"
+  },
+  "FRD": {
+    "info": {
+      "name": "Test Definitions",
+      "short_name": "TST",
+      "web_name": "test-definitions",
+      "purpose": "Test fixture.",
+      "status": "stable",
+      "effective": { "is": "required" }
+    },
+    "data": {
+      "all": {
+        "FRD-BBB": {
+          "term": "Bravo",
+          "definition": "The second synthetic term, version B wording (changed).",
+          "alts": [],
+          "updated": [
+            { "date": "2026-02-01", "comment": "fixture: reworded" },
+            { "date": "2026-01-01", "comment": "fixture" }
+          ]
+        },
+        "FRD-CCC": {
+          "term": "Charlie",
+          "definition": "The third synthetic term, present only in version B.",
+          "alts": [],
+          "updated": [{ "date": "2026-02-01", "comment": "fixture" }]
+        }
+      }
+    }
+  },
+  "FRR": {
+    "TST": {
+      "info": {
+        "name": "Test Rules",
+        "short_name": "TST",
+        "web_name": "test-rules",
+        "purpose": "Test fixture.",
+        "status": "stable",
+        "effective": { "is": "required" },
+        "subsets": {
+          "CSO": {
+            "name": "General Provider Responsibilities",
+            "description": "Test fixture subset.",
+            "applicability": {
+              "types": ["20x", "Rev5"],
+              "paths": ["Program", "Agency"],
+              "classes": ["B", "C", "D"],
+              "affects": ["Providers"]
+            }
+          }
+        }
+      },
+      "data": {
+        "all": {
+          "CSO": {
+            "TST-CSO-BBB": {
+              "name": "Bravo Rule",
+              "statement": "Providers MUST do the bravo thing (force raised from SHOULD).",
+              "force": "MUST",
+              "affects": ["Providers"],
+              "updated": [
+                { "date": "2026-02-01", "comment": "fixture: force raised to MUST" },
+                { "date": "2026-01-01", "comment": "fixture" }
+              ]
+            },
+            "TST-CSO-CCC": {
+              "name": "Charlie Rule",
+              "statement": "Providers MAY do the charlie thing, present only in version B.",
+              "force": "MAY",
+              "affects": ["Providers"],
+              "updated": [{ "date": "2026-02-01", "comment": "fixture" }]
+            }
+          }
+        }
+      }
+    }
+  },
+  "KSI": {
+    "TST": {
+      "id": "KSI-TST",
+      "name": "Test Indicators",
+      "web_name": "test-indicators",
+      "short_name": "TST",
+      "status": "stable",
+      "indicators": {
+        "KSI-TST-BBB": {
+          "name": "Bravo Indicator",
+          "statement": "The bravo capability is demonstrated, version B wording (changed).",
+          "controls": ["ac-3"],
+          "updated": [
+            { "date": "2026-02-01", "comment": "fixture: reworded" },
+            { "date": "2026-01-01", "comment": "fixture" }
+          ]
+        },
+        "KSI-TST-CCC": {
+          "name": "Charlie Indicator",
+          "statement": "The charlie capability is demonstrated, present only in version B.",
+          "controls": ["ac-4"],
+          "updated": [{ "date": "2026-02-01", "comment": "fixture" }]
+        }
+      }
+    }
+  },
+  "CTL": {
+    "AC": {
+      "AC-02": {
+        "guidance": ["Bravo control guidance, version B wording (changed)."]
+      },
+      "AC-03": {
+        "guidance": ["Charlie control guidance, present only in version B."]
+      }
+    }
+  }
+}

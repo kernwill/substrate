@@ -12,6 +12,8 @@ import (
 
 var updateGolden = flag.Bool("update", false, "update golden files")
 
+const vendoredDatasetPathForCLI = "../../internal/rules/data/fedramp-consolidated-rules.json"
+
 func testDataset(t *testing.T) *rules.Dataset {
 	t.Helper()
 	ds, err := rules.Default()
@@ -67,6 +69,106 @@ func TestGoldenRulesShow(t *testing.T) {
 	}
 }
 
+// TestGoldenRulesDiff runs "substrate rules diff" against two small,
+// hand-authored fixture files (testdata/diff/a.json, b.json - not the
+// real vendored dataset, so the fixture stays small and every change in
+// it is reviewable) covering one added, one removed, and one modified
+// record in each of FRD, FRR, KSI, and CTL, and diffs stdout against a
+// checked-in golden fixture (T-007's "with tests" / "correct structured
+// output"). Regenerate with:
+//
+//	go test ./cmd/substrate -run TestGoldenRulesDiff -update
+func TestGoldenRulesDiff(t *testing.T) {
+	fileA := filepath.Join("testdata", "diff", "a.json")
+	fileB := filepath.Join("testdata", "diff", "b.json")
+
+	cases := []struct {
+		name string
+		args []string
+	}{
+		{"text", []string{fileA, fileB}},
+		{"json", []string{"--format", "json", fileA, fileB}},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			code := runRulesDiff(c.args, &stdout, &stderr)
+			if code != 0 {
+				t.Fatalf("exit code = %d, stderr = %s", code, stderr.String())
+			}
+
+			golden := filepath.Join("testdata", "golden", "rules_diff_"+c.name+".txt")
+			if *updateGolden {
+				if err := os.WriteFile(golden, stdout.Bytes(), 0o644); err != nil {
+					t.Fatalf("write golden file: %v", err)
+				}
+			}
+			want, err := os.ReadFile(golden)
+			if err != nil {
+				t.Fatalf("read golden file %s (run with -update to create it): %v", golden, err)
+			}
+			if stdout.String() != string(want) {
+				t.Errorf("output for %v does not match %s\n--- got ---\n%s--- want ---\n%s", c.args, golden, stdout.String(), string(want))
+			}
+		})
+	}
+}
+
+func TestRulesDiffIdenticalFileProducesNoEntries(t *testing.T) {
+	fileA := filepath.Join("testdata", "diff", "a.json")
+	var stdout, stderr bytes.Buffer
+	code := runRulesDiff([]string{fileA, fileA}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %s", code, stderr.String())
+	}
+	if !bytes.Contains(stdout.Bytes(), []byte("0 added, 0 removed, 0 modified")) {
+		t.Errorf("diffing a file against itself: stdout = %q, want a 0/0/0 summary", stdout.String())
+	}
+}
+
+func TestRulesDiffRejectsWrongArgCount(t *testing.T) {
+	fileA := filepath.Join("testdata", "diff", "a.json")
+	var stdout, stderr bytes.Buffer
+	code := runRulesDiff([]string{fileA}, &stdout, &stderr)
+	if code != 2 {
+		t.Errorf("exit code = %d, want 2", code)
+	}
+}
+
+func TestRulesDiffRejectsInvalidFormat(t *testing.T) {
+	fileA := filepath.Join("testdata", "diff", "a.json")
+	fileB := filepath.Join("testdata", "diff", "b.json")
+	var stdout, stderr bytes.Buffer
+	code := runRulesDiff([]string{"--format", "yaml", fileA, fileB}, &stdout, &stderr)
+	if code != 2 {
+		t.Errorf("exit code = %d, want 2", code)
+	}
+}
+
+func TestRulesDiffRejectsMissingFile(t *testing.T) {
+	fileA := filepath.Join("testdata", "diff", "a.json")
+	var stdout, stderr bytes.Buffer
+	code := runRulesDiff([]string{fileA, "does-not-exist.json"}, &stdout, &stderr)
+	if code != 2 {
+		t.Errorf("exit code = %d, want 2", code)
+	}
+}
+
+func TestRulesDiffAgainstVendoredDataset(t *testing.T) {
+	// The vendored dataset diffed against itself, via the real CLI path
+	// (file load + schema validation + diff), not just the in-package
+	// DiffDatasets unit tests.
+	var stdout, stderr bytes.Buffer
+	code := runRulesDiff([]string{vendoredDatasetPathForCLI, vendoredDatasetPathForCLI}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %s", code, stderr.String())
+	}
+	if !bytes.Contains(stdout.Bytes(), []byte("0 added, 0 removed, 0 modified")) {
+		t.Errorf("stdout = %q, want a 0/0/0 summary", stdout.String())
+	}
+}
+
 func TestRulesShowRejectsInvalidClass(t *testing.T) {
 	ds := testDataset(t)
 	var stdout, stderr bytes.Buffer
@@ -112,19 +214,17 @@ func TestRulesShowDefaultExcludesPlaceholderDoc(t *testing.T) {
 }
 
 func TestRulesNoSubcommand(t *testing.T) {
-	ds := testDataset(t)
 	var stdout, stderr bytes.Buffer
-	code := runRules(ds, nil, &stdout, &stderr)
+	code := runRules(nil, &stdout, &stderr)
 	if code != 2 {
 		t.Errorf("exit code = %d, want 2", code)
 	}
 }
 
 func TestRulesUnknownSubcommand(t *testing.T) {
-	ds := testDataset(t)
 	var stdout, stderr bytes.Buffer
-	code := runRules(ds, []string{"diff"}, &stdout, &stderr)
+	code := runRules([]string{"gate"}, &stdout, &stderr)
 	if code != 2 {
-		t.Errorf("exit code = %d, want 2 (rules diff is T-007, not implemented yet)", code)
+		t.Errorf("exit code = %d, want 2 (rules gate is not a thing; gate is a separate top-level command, not implemented yet)", code)
 	}
 }

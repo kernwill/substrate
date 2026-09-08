@@ -9,18 +9,30 @@ import (
 	"github.com/kernwill/substrate/internal/rules"
 )
 
-// runRules dispatches "substrate rules <subcommand>". Only "show" is
-// implemented so far (T-005 / FR-1.5); "diff" is T-007.
-func runRules(ds *rules.Dataset, args []string, stdout, stderr io.Writer) int {
+// runRules dispatches "substrate rules <subcommand>": "show" (T-005 /
+// FR-1.5) and "diff" (T-007 / FR-1.4).
+//
+// Only "show" needs the embedded vendored dataset, so it's loaded here,
+// scoped to that one subcommand - not in main.go for the whole "rules"
+// verb. "diff" takes its own two dataset files as arguments and never
+// touches the embedded copy at all.
+func runRules(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "substrate rules: no subcommand given (try: show)")
+		fmt.Fprintln(stderr, "substrate rules: no subcommand given (try: show, diff)")
 		return 2
 	}
 	switch args[0] {
 	case "show":
+		ds, err := rules.Default()
+		if err != nil {
+			fmt.Fprintf(stderr, "substrate rules show: load rules dataset: %v\n", err)
+			return 2
+		}
 		return runRulesShow(ds, args[1:], stdout, stderr)
+	case "diff":
+		return runRulesDiff(args[1:], stdout, stderr)
 	default:
-		fmt.Fprintf(stderr, "substrate rules: %q not implemented yet (try: show)\n", args[0])
+		fmt.Fprintf(stderr, "substrate rules: %q not implemented yet (try: show, diff)\n", args[0])
 		return 2
 	}
 }

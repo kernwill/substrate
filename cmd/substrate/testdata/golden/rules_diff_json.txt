@@ -1,0 +1,250 @@
+{
+  "from_version": "test-v1",
+  "to_version": "test-v2",
+  "entries": [
+    {
+      "section": "CTL",
+      "id": "AC-01",
+      "change": "removed",
+      "before": {
+        "guidance": [
+          "Alpha control guidance, present only in version A."
+        ]
+      }
+    },
+    {
+      "section": "CTL",
+      "id": "AC-02",
+      "change": "modified",
+      "before": {
+        "guidance": [
+          "Bravo control guidance, version A wording."
+        ]
+      },
+      "after": {
+        "guidance": [
+          "Bravo control guidance, version B wording (changed)."
+        ]
+      }
+    },
+    {
+      "section": "CTL",
+      "id": "AC-03",
+      "change": "added",
+      "after": {
+        "guidance": [
+          "Charlie control guidance, present only in version B."
+        ]
+      }
+    },
+    {
+      "section": "FRD",
+      "id": "FRD-AAA",
+      "change": "removed",
+      "before": {
+        "term": "Alpha",
+        "definition": "The first synthetic term, present only in version A.",
+        "alts": [],
+        "updated": [
+          {
+            "date": "2026-01-01",
+            "comment": "fixture"
+          }
+        ]
+      }
+    },
+    {
+      "section": "FRD",
+      "id": "FRD-BBB",
+      "change": "modified",
+      "before": {
+        "term": "Bravo",
+        "definition": "The second synthetic term, version A wording.",
+        "alts": [],
+        "updated": [
+          {
+            "date": "2026-01-01",
+            "comment": "fixture"
+          }
+        ]
+      },
+      "after": {
+        "term": "Bravo",
+        "definition": "The second synthetic term, version B wording (changed).",
+        "alts": [],
+        "updated": [
+          {
+            "date": "2026-02-01",
+            "comment": "fixture: reworded"
+          },
+          {
+            "date": "2026-01-01",
+            "comment": "fixture"
+          }
+        ]
+      }
+    },
+    {
+      "section": "FRD",
+      "id": "FRD-CCC",
+      "change": "added",
+      "after": {
+        "term": "Charlie",
+        "definition": "The third synthetic term, present only in version B.",
+        "alts": [],
+        "updated": [
+          {
+            "date": "2026-02-01",
+            "comment": "fixture"
+          }
+        ]
+      }
+    },
+    {
+      "section": "FRR",
+      "id": "TST-CSO-AAA",
+      "change": "removed",
+      "before": {
+        "name": "Alpha Rule",
+        "statement": "Providers MUST do the alpha thing, present only in version A.",
+        "force": "MUST",
+        "affects": [
+          "Providers"
+        ],
+        "updated": [
+          {
+            "date": "2026-01-01",
+            "comment": "fixture"
+          }
+        ]
+      }
+    },
+    {
+      "section": "FRR",
+      "id": "TST-CSO-BBB",
+      "change": "modified",
+      "before": {
+        "name": "Bravo Rule",
+        "statement": "Providers SHOULD do the bravo thing.",
+        "force": "SHOULD",
+        "affects": [
+          "Providers"
+        ],
+        "updated": [
+          {
+            "date": "2026-01-01",
+            "comment": "fixture"
+          }
+        ]
+      },
+      "after": {
+        "name": "Bravo Rule",
+        "statement": "Providers MUST do the bravo thing (force raised from SHOULD).",
+        "force": "MUST",
+        "affects": [
+          "Providers"
+        ],
+        "updated": [
+          {
+            "date": "2026-02-01",
+            "comment": "fixture: force raised to MUST"
+          },
+          {
+            "date": "2026-01-01",
+            "comment": "fixture"
+          }
+        ]
+      }
+    },
+    {
+      "section": "FRR",
+      "id": "TST-CSO-CCC",
+      "change": "added",
+      "after": {
+        "name": "Charlie Rule",
+        "statement": "Providers MAY do the charlie thing, present only in version B.",
+        "force": "MAY",
+        "affects": [
+          "Providers"
+        ],
+        "updated": [
+          {
+            "date": "2026-02-01",
+            "comment": "fixture"
+          }
+        ]
+      }
+    },
+    {
+      "section": "KSI",
+      "id": "KSI-TST-AAA",
+      "change": "removed",
+      "before": {
+        "name": "Alpha Indicator",
+        "statement": "The alpha capability is demonstrated, present only in version A.",
+        "controls": [
+          "ac-2"
+        ],
+        "updated": [
+          {
+            "date": "2026-01-01",
+            "comment": "fixture"
+          }
+        ]
+      }
+    },
+    {
+      "section": "KSI",
+      "id": "KSI-TST-BBB",
+      "change": "modified",
+      "before": {
+        "name": "Bravo Indicator",
+        "statement": "The bravo capability is demonstrated, version A wording.",
+        "controls": [
+          "ac-3"
+        ],
+        "updated": [
+          {
+            "date": "2026-01-01",
+            "comment": "fixture"
+          }
+        ]
+      },
+      "after": {
+        "name": "Bravo Indicator",
+        "statement": "The bravo capability is demonstrated, version B wording (changed).",
+        "controls": [
+          "ac-3"
+        ],
+        "updated": [
+          {
+            "date": "2026-02-01",
+            "comment": "fixture: reworded"
+          },
+          {
+            "date": "2026-01-01",
+            "comment": "fixture"
+          }
+        ]
+      }
+    },
+    {
+      "section": "KSI",
+      "id": "KSI-TST-CCC",
+      "change": "added",
+      "after": {
+        "name": "Charlie Indicator",
+        "statement": "The charlie capability is demonstrated, present only in version B.",
+        "controls": [
+          "ac-4"
+        ],
+        "updated": [
+          {
+            "date": "2026-02-01",
+            "comment": "fixture"
+          }
+        ]
+      }
+    }
+  ]
+}

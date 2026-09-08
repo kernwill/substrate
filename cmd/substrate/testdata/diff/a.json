@@ -1,0 +1,111 @@
+{
+  "info": {
+    "title": "Synthetic test dataset A",
+    "description": "Minimal hand-authored fixture for substrate rules diff tests. Not real FedRAMP content.",
+    "version": "test-v1",
+    "last_updated": "2026-01-01"
+  },
+  "FRD": {
+    "info": {
+      "name": "Test Definitions",
+      "short_name": "TST",
+      "web_name": "test-definitions",
+      "purpose": "Test fixture.",
+      "status": "stable",
+      "effective": { "is": "required" }
+    },
+    "data": {
+      "all": {
+        "FRD-AAA": {
+          "term": "Alpha",
+          "definition": "The first synthetic term, present only in version A.",
+          "alts": [],
+          "updated": [{ "date": "2026-01-01", "comment": "fixture" }]
+        },
+        "FRD-BBB": {
+          "term": "Bravo",
+          "definition": "The second synthetic term, version A wording.",
+          "alts": [],
+          "updated": [{ "date": "2026-01-01", "comment": "fixture" }]
+        }
+      }
+    }
+  },
+  "FRR": {
+    "TST": {
+      "info": {
+        "name": "Test Rules",
+        "short_name": "TST",
+        "web_name": "test-rules",
+        "purpose": "Test fixture.",
+        "status": "stable",
+        "effective": { "is": "required" },
+        "subsets": {
+          "CSO": {
+            "name": "General Provider Responsibilities",
+            "description": "Test fixture subset.",
+            "applicability": {
+              "types": ["20x", "Rev5"],
+              "paths": ["Program", "Agency"],
+              "classes": ["B", "C", "D"],
+              "affects": ["Providers"]
+            }
+          }
+        }
+      },
+      "data": {
+        "all": {
+          "CSO": {
+            "TST-CSO-AAA": {
+              "name": "Alpha Rule",
+              "statement": "Providers MUST do the alpha thing, present only in version A.",
+              "force": "MUST",
+              "affects": ["Providers"],
+              "updated": [{ "date": "2026-01-01", "comment": "fixture" }]
+            },
+            "TST-CSO-BBB": {
+              "name": "Bravo Rule",
+              "statement": "Providers SHOULD do the bravo thing.",
+              "force": "SHOULD",
+              "affects": ["Providers"],
+              "updated": [{ "date": "2026-01-01", "comment": "fixture" }]
+            }
+          }
+        }
+      }
+    }
+  },
+  "KSI": {
+    "TST": {
+      "id": "KSI-TST",
+      "name": "Test Indicators",
+      "web_name": "test-indicators",
+      "short_name": "TST",
+      "status": "stable",
+      "indicators": {
+        "KSI-TST-AAA": {
+          "name": "Alpha Indicator",
+          "statement": "The alpha capability is demonstrated, present only in version A.",
+          "controls": ["ac-2"],
+          "updated": [{ "date": "2026-01-01", "comment": "fixture" }]
+        },
+        "KSI-TST-BBB": {
+          "name": "Bravo Indicator",
+          "statement": "The bravo capability is demonstrated, version A wording.",
+          "controls": ["ac-3"],
+          "updated": [{ "date": "2026-01-01", "comment": "fixture" }]
+        }
+      }
+    }
+  },
+  "CTL": {
+    "AC": {
+      "AC-01": {
+        "guidance": ["Alpha control guidance, present only in version A."]
+      },
+      "AC-02": {
+        "guidance": ["Bravo control guidance, version A wording."]
+      }
+    }
+  }
+}
