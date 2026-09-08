@@ -1,0 +1,9 @@
+/bin/
+/dist/
+*.test
+*.out
+.env
+.envrc
+coverage.*
+/testdata/live/
+.DS_Store
