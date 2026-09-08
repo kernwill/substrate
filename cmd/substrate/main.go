@@ -36,6 +36,8 @@ func main() {
 	switch os.Args[1] {
 	case "rules":
 		os.Exit(runRules(os.Args[2:], os.Stdout, os.Stderr))
+	case "compile":
+		os.Exit(runCompile(os.Args[2:], os.Stdout, os.Stderr))
 	default:
 		fmt.Fprintf(os.Stderr, "substrate: %q not implemented yet\n", os.Args[1])
 		os.Exit(2)

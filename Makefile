@@ -1,4 +1,4 @@
-.PHONY: all build test lint boundaries repro golden check clean
+.PHONY: all build test lint boundaries repro golden golden-update check clean
 
 all: check
 
@@ -19,6 +19,12 @@ repro: build
 
 golden:
 	go test ./... -run TestGolden -count=1
+
+# Deliberately regenerate golden fixtures. Never run this to silence a
+# failure without reading the diff first - that diff is a change in
+# what we assert to the federal government.
+golden-update:
+	SUBSTRATE_UPDATE_GOLDEN=1 go test ./... -run TestGolden -count=1 -v
 
 # Everything CI runs. Run this before every commit.
 check: boundaries lint test build repro
