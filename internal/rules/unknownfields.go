@@ -1,3 +1,38 @@
+// Package-internal support for preserving unknown JSON fields (FR-1.1:
+// "preserve unknown fields rather than dropping them").
+//
+// Approach and why: every typed struct in this package pairs a hand-written
+// alias type (`type xAlias X`, which strips X's own UnmarshalJSON/MarshalJSON
+// so the alias can be decoded/encoded with the plain struct-tag machinery
+// without recursing) with decodeWithExtra/encodeWithExtra below. Those two
+// functions use reflection once, at the call site, to read the alias's json
+// tags and compute which top-level object keys are "known" versus "extra".
+//
+// Three alternatives were considered and rejected:
+//
+//   - Hand-listing each type's known keys as string literals in its
+//     UnmarshalJSON. This duplicates the json tags already on the struct;
+//     the two lists WILL drift the first time a field is added to one but
+//     not the other, and the failure mode is silent (a field meant to be
+//     "known" quietly ends up in Extra, or vice versa).
+//   - Code generation (e.g. a go:generate step emitting the key lists).
+//     Correct, but adds a build-time tool and a generated-file convention
+//     for a problem reflection already solves at run time in ~30 lines.
+//     Out of proportion for a Phase 0 ingestion package on a small team.
+//   - A third-party "structs with extra fields" library (e.g. one of the
+//     mapstructure-adjacent packages). Another dependency for something
+//     the standard library's encoding/json and reflect packages already
+//     do directly - CLAUDE.md is explicit that dependencies aren't added
+//     casually.
+//
+// Reflection has a real per-call cost, but it doesn't matter here: a
+// Dataset is loaded once per compiler invocation (hundreds of records
+// decoded, not millions), not re-decoded per rule evaluation or on any
+// request path. The JSON unmarshaling this rides on top of already
+// dominates the cost of loading the ~450-record vendored dataset; the
+// reflection pass adds an immeasurable fraction on top of that. If this
+// package ever moves to decoding datasets in a hot loop, revisit this -
+// until then, optimizing it would be solving a problem this code doesn't have.
 package rules
 
 import (

@@ -6,7 +6,7 @@ This is the complete requirements document. It supersedes the earlier `complianc
 
 Tags: `[MUST]` required for the phase. `[SHOULD]` do if capacity allows. `[WON'T]` explicitly out of scope, listed so it stops being relitigated.
 
-Confidence tags on factual claims: `[verified]` confirmed against a fedramp.gov primary source. `[reported]` secondary source only. `[inference]` reasoning from verified facts.
+Confidence tags on factual claims: `[verified]` confirmed against a fedramp.gov primary source. `[dataset-verified]` confirmed programmatically against the vendored `fedramp-consolidated-rules.json` itself (also a fedramp.gov primary source, but checked by our own tooling rather than a human reading a page) - see `docs/rule-counts.md` for the derivation and the test that keeps it from going stale. `[reported]` secondary source only. `[inference]` reasoning from verified facts.
 
 ---
 
@@ -73,7 +73,7 @@ Those 2027 dates are the Phase 2 sales pitch. Name them explicitly in the produc
 
 ## 5. What CR26 requires that matters to us
 
-Package artifacts under 20x, 17 rules across three rulesets. `[verified]`
+Package artifacts under 20x, 17 rules across three rulesets. `[dataset-verified]`
 
 | Artifact | Rules | Replaces |
 |---|---|---|
@@ -83,7 +83,7 @@ Package artifacts under 20x, 17 rules across three rulesets. `[verified]`
 
 The SDR is described as "a persistently maintained, verified, and validated record of the security decisions made by the cloud service provider over the lifecycle of their cloud service offering." `[verified]` That is a data model requirement. Model it as an append-only decision log with current-state projection, not a generated document.
 
-Assurance rulesets, 76 rules across six. `[verified]`
+Assurance rulesets, 76 rules across six. `[dataset-verified]`
 
 | Ruleset | Rules |
 |---|---|
@@ -94,7 +94,9 @@ Assurance rulesets, 76 rules across six. `[verified]`
 | Addressing FedRAMP Communication (AFC) | 8 |
 | Incident Evaluation and Communication (IEC) | 7 |
 
-Ninety-three of the rules govern the package and ongoing assurance. The recurring obligation is the bulk of the regime, which is the structural argument for recurring revenue.
+Ninety-three of the rules govern the package and ongoing assurance. `[dataset-verified]` The recurring obligation is the bulk of the regime, which is the structural argument for recurring revenue.
+
+See `docs/rule-counts.md` for the derivation of every count on this page and the rest of the dataset (definitions, KSI indicators, control entries) - it also carries the test that fails the build if these drift from what the vendored dataset actually contains.
 
 Two IVV rules define our product in the government's own words: `[verified]`
 
@@ -103,7 +105,7 @@ Two IVV rules define our product in the government's own words: `[verified]`
 
 And IVV-CSO-USR: "Many modern cloud services using effective automation do not need to use representative sampling and are capable of persistently verifying and validating the majority of their security measures automatically." `[verified]`
 
-Ten KSI families: change management, cloud native architecture, cybersecurity education, identity and access management, incident response, monitoring/logging/auditing, policy and inventory, recovery planning, service configuration, supply chain risk. `[verified]`
+Ten KSI families: change management, cloud native architecture, cybersecurity education, identity and access management, incident response, monitoring/logging/auditing, policy and inventory, recovery planning, service configuration, supply chain risk. `[dataset-verified]`
 
 Certification classes replaced impact levels. `[verified]`
 
