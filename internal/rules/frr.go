@@ -225,17 +225,7 @@ func (f FRRRequirement) EffectiveForce(class ClassName) ForceLevel {
 	if f.VariesByClass == nil {
 		return f.Force
 	}
-	var level *FRRRequirementLevel
-	switch class {
-	case ClassA:
-		level = f.VariesByClass.A
-	case ClassB:
-		level = f.VariesByClass.B
-	case ClassC:
-		level = f.VariesByClass.C
-	case ClassD:
-		level = f.VariesByClass.D
-	}
+	level := f.VariesByClass.Level(class)
 	if level == nil {
 		return ""
 	}
@@ -251,6 +241,29 @@ type FRRVariesByClass struct {
 	D *FRRRequirementLevel `json:"d,omitempty"`
 
 	Extra Extra `json:"-"`
+}
+
+// Level returns v's requirement level for a specific certification
+// class, or nil if v has no entry for it. The single place that maps a
+// ClassName to a VariesByClass field, shared by EffectiveForce and
+// ruleClasses (query.go) so the four-field enumeration lives in exactly
+// one spot.
+func (v *FRRVariesByClass) Level(class ClassName) *FRRRequirementLevel {
+	if v == nil {
+		return nil
+	}
+	switch class {
+	case ClassA:
+		return v.A
+	case ClassB:
+		return v.B
+	case ClassC:
+		return v.C
+	case ClassD:
+		return v.D
+	default:
+		return nil
+	}
 }
 
 type frrVariesByClassAlias FRRVariesByClass

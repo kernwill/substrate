@@ -10,9 +10,18 @@ func resultIDs(results []RuleResult) map[string]bool {
 	return ids
 }
 
+func mustQueryRules(t *testing.T, ds *Dataset, q RuleQuery) []RuleResult {
+	t.Helper()
+	results, err := ds.QueryRules(q)
+	if err != nil {
+		t.Fatalf("QueryRules(%+v): %v", q, err)
+	}
+	return results
+}
+
 func TestQueryRulesNoFilterExcludesNonStableByDefault(t *testing.T) {
 	ds := loadVendoredDataset(t)
-	results := ds.QueryRules(RuleQuery{})
+	results := mustQueryRules(t, ds, RuleQuery{})
 	ids := resultIDs(results)
 	for id := range ids {
 		if len(id) >= 3 && id[:3] == "AGU" {
@@ -26,8 +35,8 @@ func TestQueryRulesNoFilterExcludesNonStableByDefault(t *testing.T) {
 
 func TestQueryRulesIncludeNonStableAddsPlaceholderDoc(t *testing.T) {
 	ds := loadVendoredDataset(t)
-	without := ds.QueryRules(RuleQuery{})
-	with := ds.QueryRules(RuleQuery{IncludeNonStable: true})
+	without := mustQueryRules(t, ds, RuleQuery{})
+	with := mustQueryRules(t, ds, RuleQuery{IncludeNonStable: true})
 	if len(with) <= len(without) {
 		t.Fatalf("QueryRules({IncludeNonStable: true}) returned %d rules, want more than the %d from the default query", len(with), len(without))
 	}
@@ -39,7 +48,7 @@ func TestQueryRulesIncludeNonStableAddsPlaceholderDoc(t *testing.T) {
 
 func TestQueryRulesClassFilterUsesRuleLevelOverride(t *testing.T) {
 	ds := loadVendoredDataset(t)
-	results := ds.QueryRules(RuleQuery{Class: ClassA})
+	results := mustQueryRules(t, ds, RuleQuery{Class: ClassA})
 	ids := resultIDs(results)
 
 	// CCM-QTR-MTG's subset (QTR) declares classes B/C/D only, but the
@@ -61,7 +70,7 @@ func TestQueryRulesClassFilterUsesRuleLevelOverride(t *testing.T) {
 
 func TestQueryRulesClassFilterMatchesUniformSubsetRules(t *testing.T) {
 	ds := loadVendoredDataset(t)
-	results := ds.QueryRules(RuleQuery{Class: ClassC})
+	results := mustQueryRules(t, ds, RuleQuery{Class: ClassC})
 	ids := resultIDs(results)
 	if !ids["AFC-CSO-INB"] {
 		t.Error(`QueryRules({Class: ClassC}) is missing "AFC-CSO-INB" (uniform rule, subset covers B/C/D)`)
@@ -70,7 +79,7 @@ func TestQueryRulesClassFilterMatchesUniformSubsetRules(t *testing.T) {
 
 func TestQueryRulesTypeFilterIncludesSharedAndTypeSpecificRules(t *testing.T) {
 	ds := loadVendoredDataset(t)
-	results := ds.QueryRules(RuleQuery{Type: Certification20x})
+	results := mustQueryRules(t, ds, RuleQuery{Type: Certification20x})
 	ids := resultIDs(results)
 
 	// CPO-CSX-CPM lives under CPO's "20x" container - 20x-specific.
@@ -83,7 +92,7 @@ func TestQueryRulesTypeFilterIncludesSharedAndTypeSpecificRules(t *testing.T) {
 		t.Error(`QueryRules({Type: Certification20x}) is missing "AFC-CSO-INB", a shared ("all") rule`)
 	}
 
-	rev5Only := ds.QueryRules(RuleQuery{Type: CertificationRev5})
+	rev5Only := mustQueryRules(t, ds, RuleQuery{Type: CertificationRev5})
 	rev5IDs := resultIDs(rev5Only)
 	if rev5IDs["CPO-CSX-CPM"] {
 		t.Error(`QueryRules({Type: CertificationRev5}) included "CPO-CSX-CPM", a 20x-only rule`)
@@ -93,26 +102,64 @@ func TestQueryRulesTypeFilterIncludesSharedAndTypeSpecificRules(t *testing.T) {
 	}
 }
 
+// TestQueryRulesTypeFilterResolvesCommonSubsetFallback is a direct
+// regression test for the bug the code-review's ultra pass found: VDR's
+// "TFR" subset has an applicability definition only in the common
+// info.subsets, never in info.20x.subsets or info.rev5.subsets, even
+// though its rules are split into type-specific data.20x/data.rev5
+// buckets. Without falling back to the common definition, these rules
+// silently vanished from every query - filtered or not.
+func TestQueryRulesTypeFilterResolvesCommonSubsetFallback(t *testing.T) {
+	ds := loadVendoredDataset(t)
+
+	twentyX := mustQueryRules(t, ds, RuleQuery{Type: Certification20x})
+	if !resultIDs(twentyX)["VDR-TFR-MVX"] {
+		t.Error(`QueryRules({Type: Certification20x}) is missing "VDR-TFR-MVX" (TFR subset applicability only defined in the common info.subsets)`)
+	}
+
+	rev5 := mustQueryRules(t, ds, RuleQuery{Type: CertificationRev5})
+	if !resultIDs(rev5)["VDR-TFR-MVF"] {
+		t.Error(`QueryRules({Type: CertificationRev5}) is missing "VDR-TFR-MVF" (TFR subset applicability only defined in the common info.subsets)`)
+	}
+
+	unfiltered := mustQueryRules(t, ds, RuleQuery{})
+	ids := resultIDs(unfiltered)
+	if !ids["VDR-TFR-MVX"] || !ids["VDR-TFR-MVF"] {
+		t.Error("QueryRules({}) (no filters at all) is missing VDR-TFR-MVX and/or VDR-TFR-MVF")
+	}
+}
+
 func TestQueryRulesPathFilter(t *testing.T) {
 	ds := loadVendoredDataset(t)
 
-	// IVV's IAS subset (Independent Assessor Responsibilities) applies
-	// under both Program and Agency paths - use it as a known-good
-	// Program-path match, and confirm a path this dataset never uses in
-	// this subset excludes it.
-	results := ds.QueryRules(RuleQuery{Path: PathProgram})
-	if len(results) == 0 {
+	// IVV's CSO subset (General Provider Responsibilities) applies under
+	// both Program and Agency paths.
+	program := mustQueryRules(t, ds, RuleQuery{Path: PathProgram})
+	if len(program) == 0 {
 		t.Fatal("QueryRules({Path: PathProgram}) returned no rules")
 	}
-	ids := resultIDs(results)
-	if !ids["IVV-CSO-SEI"] {
+	if !resultIDs(program)["IVV-CSO-SEI"] {
 		t.Error(`QueryRules({Path: PathProgram}) is missing "IVV-CSO-SEI"`)
+	}
+
+	// FRC's CLA subset (Mandatory/Recommended/Optional FedRAMP Rules for
+	// Class A) is Program-only - applicability.paths = ["Program"], no
+	// "Agency". A Program-path result must include it; an Agency-path
+	// query must exclude it entirely. This is the negative case the
+	// positive-only version of this test used to just describe in a
+	// comment without actually checking.
+	if !resultIDs(program)["FRC-CLA-MFR"] {
+		t.Error(`QueryRules({Path: PathProgram}) is missing "FRC-CLA-MFR" (subset FRC/CLA is Program-only)`)
+	}
+	agency := mustQueryRules(t, ds, RuleQuery{Path: PathAgency})
+	if resultIDs(agency)["FRC-CLA-MFR"] {
+		t.Error(`QueryRules({Path: PathAgency}) included "FRC-CLA-MFR", whose subset (FRC/CLA) is Program-only`)
 	}
 }
 
 func TestQueryRulesResultsAreSortedByID(t *testing.T) {
 	ds := loadVendoredDataset(t)
-	results := ds.QueryRules(RuleQuery{Class: ClassC})
+	results := mustQueryRules(t, ds, RuleQuery{Class: ClassC})
 	for i := 1; i < len(results); i++ {
 		if results[i-1].ID >= results[i].ID {
 			t.Fatalf("results not sorted: %q >= %q at index %d", results[i-1].ID, results[i].ID, i)
@@ -147,9 +194,26 @@ func TestFRRRequirementEffectiveForce(t *testing.T) {
 
 func TestQueryRulesCombinedFiltersAreConjunctive(t *testing.T) {
 	ds := loadVendoredDataset(t)
-	broad := ds.QueryRules(RuleQuery{Class: ClassA})
-	narrow := ds.QueryRules(RuleQuery{Class: ClassA, Type: Certification20x, Path: PathProgram})
+	broad := mustQueryRules(t, ds, RuleQuery{Class: ClassA})
+	narrow := mustQueryRules(t, ds, RuleQuery{Class: ClassA, Type: Certification20x, Path: PathProgram})
 	if len(narrow) > len(broad) {
 		t.Fatalf("adding Type and Path filters grew the result set from %d to %d; filters should only narrow", len(broad), len(narrow))
+	}
+}
+
+// TestQueryRulesFailsLoudlyOnUnresolvableSubset proves QueryRules
+// returns an error - rather than silently omitting the affected rules -
+// when a subset has rules but no applicability definition can be
+// resolved anywhere for it.
+func TestQueryRulesFailsLoudlyOnUnresolvableSubset(t *testing.T) {
+	ds := loadVendoredDataset(t)
+	modified := mustClone(t, ds)
+
+	doc := modified.FRR["AFC"]
+	delete(doc.Info.Subsets, "CSO")
+	modified.FRR["AFC"] = doc
+
+	if _, err := modified.QueryRules(RuleQuery{}); err == nil {
+		t.Fatal("QueryRules succeeded after removing a subset's only applicability definition, want an error")
 	}
 }

@@ -3,6 +3,8 @@ package rules
 import (
 	"bufio"
 	"os"
+	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -68,69 +70,31 @@ func docInt(t *testing.T, values map[string]string, key string) int {
 	return n
 }
 
-// includesProviders20x reports whether a subset's applicability covers
-// both providers and the 20x certification type - the two filters
-// docs/REQUIREMENTS.md section 5's package/assurance rule counts apply.
-func includesProviders20x(a FRRSubsetApplicability) bool {
-	hasProviders, has20x := false, false
-	for _, p := range a.Affects {
-		if p == AffectsProviders {
-			hasProviders = true
-		}
-	}
-	for _, ty := range a.Types {
-		if ty == Certification20x {
-			has20x = true
-		}
-	}
-	return hasProviders && has20x
-}
-
-// forEachProviderRuleUnder20x calls fn once per rule in doc's "all" and
-// "20x" containers whose subset applies to providers under 20x, passing
-// along the subset's declared classes for callers that need them. It
-// ignores the "rev5" container entirely, since that's Rev5-only by
-// construction.
-func forEachProviderRuleUnder20x(t *testing.T, docKey string, doc FRRDocument, fn func(rule FRRRequirement, subsetClasses []ClassName)) {
+// providerRulesUnder20x runs the real QueryRules (the same code path
+// "substrate rules show" uses) scoped to the 20x certification type,
+// with q's other fields (typically just Class) passed through, and
+// keeps only results affecting Providers - the one filter dimension
+// QueryRules doesn't apply itself, since FR-1.5 only asks for
+// class/type/path. Reusing QueryRules here (rather than this test
+// hand-rolling its own subset-resolution walk, as an earlier version of
+// this file did) means a fix to QueryRules' applicability resolution
+// - such as the common-subset fallback fixed alongside this - can't
+// silently drift out of sync between the CLI and this doc's numbers.
+func providerRulesUnder20x(t *testing.T, ds *Dataset, q RuleQuery) []RuleResult {
 	t.Helper()
-	for subset, rules := range doc.Data.All {
-		def, ok := doc.Info.Subsets[subset]
-		if !ok {
-			t.Fatalf("FRR[%s].Data.All has subset %q with no matching Info.Subsets entry", docKey, subset)
-		}
-		if !includesProviders20x(def.Applicability) {
-			continue
-		}
-		for _, rule := range rules {
-			fn(rule, def.Applicability.Classes)
+	q.Type = Certification20x
+	results, err := ds.QueryRules(q)
+	if err != nil {
+		t.Fatalf("QueryRules(%+v): %v", q, err)
+	}
+	out := results[:0:0]
+	for _, r := range results {
+		if slices.Contains(r.Rule.Affects, AffectsProviders) {
+			out = append(out, r)
 		}
 	}
-	for subset, rules := range doc.Data.TwentyX {
-		if doc.Info.TwentyX == nil {
-			t.Fatalf("FRR[%s].Data.TwentyX has subset %q but Info.TwentyX is nil", docKey, subset)
-		}
-		def, ok := doc.Info.TwentyX.Subsets[subset]
-		if !ok {
-			t.Fatalf("FRR[%s].Data.TwentyX has subset %q with no matching Info.TwentyX.Subsets entry", docKey, subset)
-		}
-		if !includesProviders20x(def.Applicability) {
-			continue
-		}
-		for _, rule := range rules {
-			fn(rule, def.Applicability.Classes)
-		}
-	}
+	return out
 }
-
-func providerRuleCountUnder20x(t *testing.T, docKey string, doc FRRDocument) int {
-	t.Helper()
-	total := 0
-	forEachProviderRuleUnder20x(t, docKey, doc, func(FRRRequirement, []ClassName) { total++ })
-	return total
-}
-
-// ruleClasses (package query.go) implements the same rule-level-overrides-
-// subset-level logic this test relies on for the per-class breakdown.
 
 // TestRuleCountsDocMatchesDataset recomputes every count docs/rule-counts.md
 // claims directly from the vendored dataset. If someone updates the
@@ -206,6 +170,26 @@ func TestRuleCountsDocMatchesDataset(t *testing.T) {
 		}
 	}
 
+	// The five KSI indicators that vary by class, named in rule-counts.md's
+	// prose - tracked in the machine-readable block too (not just prose)
+	// so a future dataset revision changing which/how many vary can't go
+	// stale silently.
+	var varyingByClass []string
+	for _, theme := range ds.KSI {
+		for id, ind := range theme.Indicators {
+			if ind.VariesByClass != nil {
+				varyingByClass = append(varyingByClass, id)
+			}
+		}
+	}
+	sort.Strings(varyingByClass)
+	if wantN := docInt(t, want, "ksi_indicators_varying_by_class"); len(varyingByClass) != wantN {
+		t.Errorf("KSI indicators varying by class = %d, docs/rule-counts.md claims %d", len(varyingByClass), wantN)
+	}
+	if wantIDs, gotIDs := want["ksi_indicators_varying_by_class_ids"], strings.Join(varyingByClass, ","); gotIDs != wantIDs {
+		t.Errorf("KSI indicators varying by class = %q, docs/rule-counts.md claims %q", gotIDs, wantIDs)
+	}
+
 	// docs/REQUIREMENTS.md section 5: package and assurance rule counts,
 	// scoped to rules that affect Providers under the 20x certification
 	// type, plus the same scope broken down by certification class.
@@ -223,31 +207,22 @@ func TestRuleCountsDocMatchesDataset(t *testing.T) {
 		"IEC": "assurance_iec",
 	}
 
-	classCounts := map[ClassName]int{}
-	packageTotal, assuranceTotal := 0, 0
-	tally := func(docKey string) int {
-		doc, ok := ds.FRR[docKey]
-		if !ok {
-			t.Fatalf("FRR[%s] missing", docKey)
-		}
-		total := 0
-		forEachProviderRuleUnder20x(t, docKey, doc, func(rule FRRRequirement, subsetClasses []ClassName) {
-			total++
-			for _, c := range ruleClasses(rule, subsetClasses) {
-				classCounts[c]++
-			}
-		})
-		return total
+	allProviderRules := providerRulesUnder20x(t, ds, RuleQuery{})
+	byDoc := map[string]int{}
+	for _, r := range allProviderRules {
+		byDoc[r.Document]++
 	}
+
+	packageTotal, assuranceTotal := 0, 0
 	for docKey, wantKey := range packageDocs {
-		got := tally(docKey)
+		got := byDoc[docKey]
 		packageTotal += got
 		if wantN := docInt(t, want, wantKey); got != wantN {
 			t.Errorf("provider/20x rule count for %s = %d, docs/rule-counts.md claims %d", docKey, got, wantN)
 		}
 	}
 	for docKey, wantKey := range assuranceDocs {
-		got := tally(docKey)
+		got := byDoc[docKey]
 		assuranceTotal += got
 		if wantN := docInt(t, want, wantKey); got != wantN {
 			t.Errorf("provider/20x rule count for %s = %d, docs/rule-counts.md claims %d", docKey, got, wantN)
@@ -264,15 +239,54 @@ func TestRuleCountsDocMatchesDataset(t *testing.T) {
 		t.Errorf("package + assurance total = %d, docs/rule-counts.md claims %d", packageTotal+assuranceTotal, wantN)
 	}
 
+	// docs/rule-counts.md's "93" figure (and its per-class breakdown) is
+	// deliberately scoped to these 9 named rulesets - the ones
+	// docs/REQUIREMENTS.md section 5 calls "the package" and "the [six]
+	// assurance rulesets" - not every provider-facing, 20x-applicable
+	// rule in the dataset. There are more: MKT, CDS, CMU, FRC, MAS, and
+	// VDR each carry real provider obligations under 20x too (168 total
+	// across all 15 non-placeholder FRR documents, vs. 93 in the named
+	// 9), they just aren't part of what REQUIREMENTS.md's "package and
+	// ongoing assurance" narrative names. Both figures are recorded and
+	// tested below so neither number is mistaken for the other.
+	allowlisted := make(map[string]bool, len(packageDocs)+len(assuranceDocs))
+	for docKey := range packageDocs {
+		allowlisted[docKey] = true
+	}
+	for docKey := range assuranceDocs {
+		allowlisted[docKey] = true
+	}
+
 	classKeys := map[ClassName]string{
 		ClassA: "class_a",
 		ClassB: "class_b",
 		ClassC: "class_c",
 		ClassD: "class_d",
 	}
+	allFRRClassKeys := map[ClassName]string{
+		ClassA: "provider_20x_all_frr_class_a",
+		ClassB: "provider_20x_all_frr_class_b",
+		ClassC: "provider_20x_all_frr_class_c",
+		ClassD: "provider_20x_all_frr_class_d",
+	}
 	for class, wantKey := range classKeys {
-		if wantN := docInt(t, want, wantKey); classCounts[class] != wantN {
-			t.Errorf("provider/20x rule count for class %s = %d, docs/rule-counts.md claims %d", class, classCounts[class], wantN)
+		classResults := providerRulesUnder20x(t, ds, RuleQuery{Class: class})
+		got := 0
+		allFRRGot := len(classResults)
+		for _, r := range classResults {
+			if allowlisted[r.Document] {
+				got++
+			}
 		}
+		if wantN := docInt(t, want, wantKey); got != wantN {
+			t.Errorf("provider/20x rule count for class %s (named 9 rulesets) = %d, docs/rule-counts.md claims %d", class, got, wantN)
+		}
+		if wantN := docInt(t, want, allFRRClassKeys[class]); allFRRGot != wantN {
+			t.Errorf("provider/20x rule count for class %s (all FRR documents) = %d, docs/rule-counts.md claims %d", class, allFRRGot, wantN)
+		}
+	}
+
+	if wantN := docInt(t, want, "provider_20x_all_frr_total"); len(allProviderRules) != wantN {
+		t.Errorf("provider/20x rule count across all FRR documents = %d, docs/rule-counts.md claims %d", len(allProviderRules), wantN)
 	}
 }

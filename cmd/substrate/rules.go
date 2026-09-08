@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"strings"
 
 	"github.com/kernwill/substrate/internal/rules"
 )
@@ -57,7 +56,7 @@ func runRulesShow(ds *rules.Dataset, args []string, stdout, stderr io.Writer) in
 	q := rules.RuleQuery{IncludeNonStable: *includePlaceholder}
 
 	if *class != "" {
-		c, err := parseClass(*class)
+		c, err := rules.ParseClassName(*class)
 		if err != nil {
 			fmt.Fprintf(stderr, "substrate rules show: %v\n", err)
 			return 2
@@ -65,7 +64,7 @@ func runRulesShow(ds *rules.Dataset, args []string, stdout, stderr io.Writer) in
 		q.Class = c
 	}
 	if *certType != "" {
-		ct, err := parseCertType(*certType)
+		ct, err := rules.ParseCertificationType(*certType)
 		if err != nil {
 			fmt.Fprintf(stderr, "substrate rules show: %v\n", err)
 			return 2
@@ -73,7 +72,7 @@ func runRulesShow(ds *rules.Dataset, args []string, stdout, stderr io.Writer) in
 		q.Type = ct
 	}
 	if *path != "" {
-		p, err := parseCertPath(*path)
+		p, err := rules.ParseCertificationPath(*path)
 		if err != nil {
 			fmt.Fprintf(stderr, "substrate rules show: %v\n", err)
 			return 2
@@ -81,7 +80,11 @@ func runRulesShow(ds *rules.Dataset, args []string, stdout, stderr io.Writer) in
 		q.Path = p
 	}
 
-	results := ds.QueryRules(q)
+	results, err := ds.QueryRules(q)
+	if err != nil {
+		fmt.Fprintf(stderr, "substrate rules show: %v\n", err)
+		return 2
+	}
 
 	fmt.Fprintln(stdout, "ID\tFORCE\tNAME")
 	for _, r := range results {
@@ -104,41 +107,4 @@ func ruleForceColumn(r rules.RuleResult, q rules.RuleQuery) string {
 		return "VARIES"
 	}
 	return string(r.Rule.Force)
-}
-
-func parseClass(s string) (rules.ClassName, error) {
-	switch strings.ToUpper(s) {
-	case "A":
-		return rules.ClassA, nil
-	case "B":
-		return rules.ClassB, nil
-	case "C":
-		return rules.ClassC, nil
-	case "D":
-		return rules.ClassD, nil
-	default:
-		return "", fmt.Errorf("invalid --class %q (want A, B, C, or D)", s)
-	}
-}
-
-func parseCertType(s string) (rules.CertificationType, error) {
-	switch strings.ToLower(s) {
-	case "20x":
-		return rules.Certification20x, nil
-	case "rev5":
-		return rules.CertificationRev5, nil
-	default:
-		return "", fmt.Errorf("invalid --type %q (want 20x or Rev5)", s)
-	}
-}
-
-func parseCertPath(s string) (rules.CertificationPath, error) {
-	switch strings.ToLower(s) {
-	case "program":
-		return rules.PathProgram, nil
-	case "agency":
-		return rules.PathAgency, nil
-	default:
-		return "", fmt.Errorf("invalid --path %q (want Program or Agency)", s)
-	}
 }

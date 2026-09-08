@@ -163,6 +163,8 @@ VDR-CSO-MSP	SHOULD NOT	Maintain Security
 VDR-CSO-RES	MUST	Vulnerability Response
 VDR-CSO-SIR	MAY	Sampling
 VDR-TFR-KEV	SHOULD	Remediate KEVs
+VDR-TFR-MVF	MUST	Persistent Machine Verification and Validation for Rev5
+VDR-TFR-MVX	MUST	Persistent Machine Verification and Validation for 20x
 VDR-TFR-NMV	MUST	Non-Machine Verification and Validation
 VDR-TFR-PCD	SHOULD	Persistently Complete Detection
 VDR-TFR-PDD	SHOULD	Persistent Drift Detection
@@ -192,4 +194,4 @@ VER-TFR-MAV	MUST	Mark Accepted Vulnerabilities
 VER-TFR-MHR	MUST	Monthly Activity Report
 VER-TFR-MRH	SHOULD	Historical Activity
 VER-TFR-NRI	MAY	Non-Internet-Reachable Incidents
-193 rules
+195 rules

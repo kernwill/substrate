@@ -1,6 +1,10 @@
 package rules
 
-import "sort"
+import (
+	"fmt"
+	"slices"
+	"sort"
+)
 
 // RuleQuery filters FRR rules by certification class, type, and path
 // (FR-1.5). A zero-value field means "no filter" for that dimension.
@@ -30,60 +34,108 @@ type RuleResult struct {
 }
 
 // QueryRules returns every FRR rule in ds matching q, sorted by rule ID.
-func (ds *Dataset) QueryRules(q RuleQuery) []RuleResult {
+//
+// It returns an error if a subset has rules but no applicability
+// definition can be resolved for it anywhere (see resolveSubsets),
+// rather than silently omitting those rules from the result: the
+// vendored dataset has real, currently-applicable rules (e.g.
+// VDR-TFR-MVX) that would otherwise vanish from every query, filtered or
+// not, with no indication anything was left out - "absence of evidence
+// is not evidence of compliance" applies to this package's own output,
+// not just the compiler's eventual rule verdicts.
+func (ds *Dataset) QueryRules(q RuleQuery) ([]RuleResult, error) {
+	docKeys := make([]string, 0, len(ds.FRR))
+	for k := range ds.FRR {
+		docKeys = append(docKeys, k)
+	}
+	sort.Strings(docKeys)
+
 	var results []RuleResult
-	for docKey, doc := range ds.FRR {
+	for _, docKey := range docKeys {
+		doc := ds.FRR[docKey]
 		if doc.Info.Status != StatusStable && !q.IncludeNonStable {
 			continue
 		}
 
-		// The "all" bucket is shared between certification types by
-		// definition, so it's in scope regardless of q.Type.
-		results = append(results, matchRuleContainer(docKey, doc.Data.All, doc.Info.Subsets, doc.Info.Status, q)...)
+		r, err := matchRuleContainer(docKey, "all", doc.Data.All, resolveSubsets(doc, ""), doc.Info.Status, q)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, r...)
 
 		if q.Type == "" || q.Type == Certification20x {
-			var subsets map[string]FRRSubsetDefinition
-			if doc.Info.TwentyX != nil {
-				subsets = doc.Info.TwentyX.Subsets
+			r, err := matchRuleContainer(docKey, "20x", doc.Data.TwentyX, resolveSubsets(doc, Certification20x), doc.Info.Status, q)
+			if err != nil {
+				return nil, err
 			}
-			results = append(results, matchRuleContainer(docKey, doc.Data.TwentyX, subsets, doc.Info.Status, q)...)
+			results = append(results, r...)
 		}
 		if q.Type == "" || q.Type == CertificationRev5 {
-			var subsets map[string]FRRSubsetDefinition
-			if doc.Info.Rev5 != nil {
-				subsets = doc.Info.Rev5.Subsets
+			r, err := matchRuleContainer(docKey, "rev5", doc.Data.Rev5, resolveSubsets(doc, CertificationRev5), doc.Info.Status, q)
+			if err != nil {
+				return nil, err
 			}
-			results = append(results, matchRuleContainer(docKey, doc.Data.Rev5, subsets, doc.Info.Status, q)...)
+			results = append(results, r...)
 		}
 	}
 	sort.Slice(results, func(i, j int) bool { return results[i].ID < results[j].ID })
-	return results
+	return results, nil
+}
+
+// resolveSubsets returns doc's subset applicability definitions for one
+// data container ("all", "20x", or "rev5"). Per the FedRAMP rules
+// repo's own AI-agent guidance: "Resolve FRR subset definitions from
+// common info.subsets plus any matching framework-specific
+// info.20x.subsets or info.rev5.subsets." A type-specific entry
+// overrides the common one when both define the same subset key; a
+// subset with no type-specific override at all still resolves through
+// the common map. Missing this fallback is exactly what let
+// VDR-TFR-MVX/MVF (defined under doc.Data.TwentyX/Rev5, but only ever
+// given an applicability definition in the common doc.Info.Subsets, not
+// a type-specific one) go undetected.
+func resolveSubsets(doc FRRDocument, container CertificationType) map[string]FRRSubsetDefinition {
+	merged := make(map[string]FRRSubsetDefinition, len(doc.Info.Subsets))
+	for k, v := range doc.Info.Subsets {
+		merged[k] = v
+	}
+	var override map[string]FRRSubsetDefinition
+	switch container {
+	case Certification20x:
+		if doc.Info.TwentyX != nil {
+			override = doc.Info.TwentyX.Subsets
+		}
+	case CertificationRev5:
+		if doc.Info.Rev5 != nil {
+			override = doc.Info.Rev5.Subsets
+		}
+	}
+	for k, v := range override {
+		merged[k] = v
+	}
+	return merged
 }
 
 // matchRuleContainer filters one data container (the rules under "all",
-// "20x", or "rev5" for a single FRR document) against q's path and class
-// filters. A subset with rules but no matching applicability definition
-// is skipped rather than erroring: QueryRules is a best-effort read path
-// for already-schema-valid data, not a second validator - ValidateSchema
-// is where a malformed dataset gets a loud, structured failure.
-func matchRuleContainer(docKey string, container map[string]map[string]FRRRequirement, subsets map[string]FRRSubsetDefinition, status DocumentStatus, q RuleQuery) []RuleResult {
+// "20x", or "rev5" for a single FRR document, named by containerName for
+// error messages) against q's path and class filters.
+func matchRuleContainer(docKey, containerName string, container map[string]map[string]FRRRequirement, subsets map[string]FRRSubsetDefinition, status DocumentStatus, q RuleQuery) ([]RuleResult, error) {
 	var out []RuleResult
 	for subsetKey, rules := range container {
 		def, ok := subsets[subsetKey]
 		if !ok {
-			continue
+			return nil, fmt.Errorf("rules: FRR[%s].data.%s has subset %q with %d rule(s) but no matching applicability definition in info.subsets or the %s-specific override", docKey, containerName, subsetKey, len(rules), containerName)
 		}
-		if q.Path != "" && !containsValue(def.Applicability.Paths, q.Path) {
+		if q.Path != "" && !slices.Contains(def.Applicability.Paths, q.Path) {
 			continue
 		}
 		for ruleID, rule := range rules {
-			if q.Class != "" && !containsValue(ruleClasses(rule, def.Applicability.Classes), q.Class) {
+			if q.Class != "" && !slices.Contains(ruleClasses(rule, def.Applicability.Classes), q.Class) {
 				continue
 			}
 			out = append(out, RuleResult{Document: docKey, Subset: subsetKey, ID: ruleID, Rule: rule, Status: status})
 		}
 	}
-	return out
+	return out, nil
 }
 
 // ruleClasses returns which certification classes rule applies to.
@@ -103,26 +155,10 @@ func ruleClasses(rule FRRRequirement, subsetClasses []ClassName) []ClassName {
 		return subsetClasses
 	}
 	var classes []ClassName
-	if rule.VariesByClass.A != nil {
-		classes = append(classes, ClassA)
-	}
-	if rule.VariesByClass.B != nil {
-		classes = append(classes, ClassB)
-	}
-	if rule.VariesByClass.C != nil {
-		classes = append(classes, ClassC)
-	}
-	if rule.VariesByClass.D != nil {
-		classes = append(classes, ClassD)
-	}
-	return classes
-}
-
-func containsValue[T comparable](values []T, want T) bool {
-	for _, v := range values {
-		if v == want {
-			return true
+	for _, c := range [...]ClassName{ClassA, ClassB, ClassC, ClassD} {
+		if rule.VariesByClass.Level(c) != nil {
+			classes = append(classes, c)
 		}
 	}
-	return false
+	return classes
 }

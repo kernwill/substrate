@@ -5,13 +5,31 @@ import (
 	"testing"
 )
 
-// TestFRRAndKSIIdsAreGloballyUnique backs flattenFRR's and flattenKSI's
-// doc comments: requirement and indicator IDs must be unique across the
-// whole vendored dataset, not just within one document or theme, or
-// flattening them into a single ID-keyed map for diffing would silently
-// drop collisions.
-func TestFRRAndKSIIdsAreGloballyUnique(t *testing.T) {
+// TestFRDFRRAndKSIIdsAreGloballyUnique backs flattenFRD's, flattenFRR's,
+// and flattenKSI's doc comments: definition, requirement, and indicator
+// IDs must be unique across the whole vendored dataset, not just within
+// one bucket, document, or theme, or flattening them into a single
+// ID-keyed map for diffing would silently drop collisions. (insertUnique
+// would also catch this at diff time with a loud error - this test
+// additionally confirms today's vendored dataset never actually
+// triggers it.)
+func TestFRDFRRAndKSIIdsAreGloballyUnique(t *testing.T) {
 	ds := loadVendoredDataset(t)
+
+	seenFRD := map[string]bool{}
+	frdCount := 0
+	for _, bucket := range []map[string]FRDDefinition{ds.FRD.Data.All, ds.FRD.Data.TwentyX, ds.FRD.Data.Rev5} {
+		for id := range bucket {
+			if seenFRD[id] {
+				t.Errorf("FRD definition ID %q is not globally unique across applicability buckets", id)
+			}
+			seenFRD[id] = true
+			frdCount++
+		}
+	}
+	if frdCount == 0 {
+		t.Fatal("no FRD definitions found at all")
+	}
 
 	seen := map[string]bool{}
 	count := 0
@@ -45,6 +63,24 @@ func TestFRRAndKSIIdsAreGloballyUnique(t *testing.T) {
 	}
 	if ksiCount == 0 {
 		t.Fatal("no KSI indicators found at all")
+	}
+}
+
+// TestDiffDatasetsFailsLoudlyOnDuplicateID proves DiffDatasets returns an
+// error - rather than silently letting one colliding record overwrite
+// another via map assignment - when the same ID appears twice within a
+// section. Constructed via FRD, whose data container has three
+// applicability buckets (all/20x/rev5) a duplicate could span, unlike
+// the vendored dataset today which only ever populates "all".
+func TestDiffDatasetsFailsLoudlyOnDuplicateID(t *testing.T) {
+	ds := loadVendoredDataset(t)
+	modified := mustClone(t, ds)
+
+	dup := modified.FRD.Data.All["FRD-ACV"]
+	modified.FRD.Data.TwentyX = map[string]FRDDefinition{"FRD-ACV": dup}
+
+	if _, err := DiffDatasets(ds, modified); err == nil {
+		t.Fatal("DiffDatasets succeeded with FRD-ACV duplicated across two applicability buckets, want an error")
 	}
 }
 

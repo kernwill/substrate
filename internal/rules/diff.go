@@ -3,6 +3,7 @@ package rules
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"sort"
 )
 
@@ -82,22 +83,61 @@ func (d Diff) filter(kind ChangeKind) []DiffEntry {
 func DiffDatasets(from, to *Dataset) (Diff, error) {
 	diff := Diff{FromVersion: from.Info.Version, ToVersion: to.Info.Version}
 
-	sections := []struct {
-		section Section
-		diffFn  func() ([]DiffEntry, error)
-	}{
-		{SectionFRD, func() ([]DiffEntry, error) { return diffRecords(SectionFRD, flattenFRD(from), flattenFRD(to)) }},
-		{SectionFRR, func() ([]DiffEntry, error) { return diffRecords(SectionFRR, flattenFRR(from), flattenFRR(to)) }},
-		{SectionKSI, func() ([]DiffEntry, error) { return diffRecords(SectionKSI, flattenKSI(from), flattenKSI(to)) }},
-		{SectionCTL, func() ([]DiffEntry, error) { return diffRecords(SectionCTL, flattenCTL(from), flattenCTL(to)) }},
+	frdFrom, err := flattenFRD(from)
+	if err != nil {
+		return Diff{}, fmt.Errorf("rules: diff: from dataset: %w", err)
 	}
-	for _, s := range sections {
-		entries, err := s.diffFn()
-		if err != nil {
-			return Diff{}, err
-		}
-		diff.Entries = append(diff.Entries, entries...)
+	frdTo, err := flattenFRD(to)
+	if err != nil {
+		return Diff{}, fmt.Errorf("rules: diff: to dataset: %w", err)
 	}
+	frdEntries, err := diffRecords(SectionFRD, frdFrom, frdTo)
+	if err != nil {
+		return Diff{}, err
+	}
+	diff.Entries = append(diff.Entries, frdEntries...)
+
+	frrFrom, err := flattenFRR(from)
+	if err != nil {
+		return Diff{}, fmt.Errorf("rules: diff: from dataset: %w", err)
+	}
+	frrTo, err := flattenFRR(to)
+	if err != nil {
+		return Diff{}, fmt.Errorf("rules: diff: to dataset: %w", err)
+	}
+	frrEntries, err := diffRecords(SectionFRR, frrFrom, frrTo)
+	if err != nil {
+		return Diff{}, err
+	}
+	diff.Entries = append(diff.Entries, frrEntries...)
+
+	ksiFrom, err := flattenKSI(from)
+	if err != nil {
+		return Diff{}, fmt.Errorf("rules: diff: from dataset: %w", err)
+	}
+	ksiTo, err := flattenKSI(to)
+	if err != nil {
+		return Diff{}, fmt.Errorf("rules: diff: to dataset: %w", err)
+	}
+	ksiEntries, err := diffRecords(SectionKSI, ksiFrom, ksiTo)
+	if err != nil {
+		return Diff{}, err
+	}
+	diff.Entries = append(diff.Entries, ksiEntries...)
+
+	ctlFrom, err := flattenCTL(from)
+	if err != nil {
+		return Diff{}, fmt.Errorf("rules: diff: from dataset: %w", err)
+	}
+	ctlTo, err := flattenCTL(to)
+	if err != nil {
+		return Diff{}, fmt.Errorf("rules: diff: to dataset: %w", err)
+	}
+	ctlEntries, err := diffRecords(SectionCTL, ctlFrom, ctlTo)
+	if err != nil {
+		return Diff{}, err
+	}
+	diff.Entries = append(diff.Entries, ctlEntries...)
 
 	sort.Slice(diff.Entries, func(i, j int) bool {
 		a, b := diff.Entries[i], diff.Entries[j]
@@ -114,7 +154,7 @@ func DiffDatasets(from, to *Dataset) (Diff, error) {
 func diffRecords[T any](section Section, from, to map[string]T) ([]DiffEntry, error) {
 	var entries []DiffEntry
 	for id, a := range from {
-		rawA, err := json.Marshal(a)
+		rawA, err := marshalJSON(a)
 		if err != nil {
 			return nil, err
 		}
@@ -123,7 +163,7 @@ func diffRecords[T any](section Section, from, to map[string]T) ([]DiffEntry, er
 			entries = append(entries, DiffEntry{Section: section, ID: id, Change: Removed, Before: rawA})
 			continue
 		}
-		rawB, err := json.Marshal(b)
+		rawB, err := marshalJSON(b)
 		if err != nil {
 			return nil, err
 		}
@@ -135,7 +175,7 @@ func diffRecords[T any](section Section, from, to map[string]T) ([]DiffEntry, er
 		if _, ok := from[id]; ok {
 			continue
 		}
-		rawB, err := json.Marshal(b)
+		rawB, err := marshalJSON(b)
 		if err != nil {
 			return nil, err
 		}
@@ -144,62 +184,92 @@ func diffRecords[T any](section Section, from, to map[string]T) ([]DiffEntry, er
 	return entries, nil
 }
 
+// insertUnique adds id/v to m, or returns an error naming the collision
+// if id is already present. kind labels the record type in that error
+// (e.g. "FRD definition"). Flattening a dataset into an ID-keyed map
+// only preserves every record if IDs really are unique; silently letting
+// a later entry overwrite an earlier one on collision would violate
+// this project's "no map iteration order dependence" and "fail visible,
+// never fail silent" invariants at once - which entry survives would
+// depend on Go's randomized map iteration order, and the loss would be
+// invisible in the diff output.
+func insertUnique[T any](m map[string]T, id string, v T, kind string) error {
+	if _, exists := m[id]; exists {
+		return fmt.Errorf("rules: duplicate %s ID %q found in more than one location", kind, id)
+	}
+	m[id] = v
+	return nil
+}
+
 // flattenFRD flattens FRD definitions across all three applicability
 // buckets (all/20x/rev5) into one ID-keyed map. A given FRD-XXX is
-// expected to live in exactly one bucket; if the dataset ever puts the
-// same ID in two buckets, the later bucket in iteration order wins - an
-// anomaly worth its own investigation, not something this diff silently
-// papers over by inventing a compound key no part of the schema defines.
-func flattenFRD(ds *Dataset) map[string]FRDDefinition {
+// expected to live in exactly one bucket.
+func flattenFRD(ds *Dataset) (map[string]FRDDefinition, error) {
 	out := make(map[string]FRDDefinition)
 	for _, bucket := range []map[string]FRDDefinition{ds.FRD.Data.All, ds.FRD.Data.TwentyX, ds.FRD.Data.Rev5} {
 		for id, def := range bucket {
-			out[id] = def
+			if err := insertUnique(out, id, def, "FRD definition"); err != nil {
+				return nil, err
+			}
 		}
 	}
-	return out
+	return out, nil
 }
 
 // flattenFRR flattens FRR rules across every document, applicability
 // bucket, and subset into one ID-keyed map. Requirement IDs follow
 // PROCESS-SUBSET-KEY and are unique across the whole dataset by
 // construction (verified against the vendored dataset in diff_test.go),
-// so no document or bucket qualifier is needed in the key.
-func flattenFRR(ds *Dataset) map[string]FRRRequirement {
+// so no document or bucket qualifier is needed in the key - but that's a
+// fact about today's vendored dataset, not something the schema
+// enforces, hence insertUnique rather than a bare map write.
+func flattenFRR(ds *Dataset) (map[string]FRRRequirement, error) {
 	out := make(map[string]FRRRequirement)
 	for _, doc := range ds.FRR {
 		for _, container := range []map[string]map[string]FRRRequirement{doc.Data.All, doc.Data.TwentyX, doc.Data.Rev5} {
 			for _, rules := range container {
 				for id, rule := range rules {
-					out[id] = rule
+					if err := insertUnique(out, id, rule, "FRR rule"); err != nil {
+						return nil, err
+					}
 				}
 			}
 		}
 	}
-	return out
+	return out, nil
 }
 
 // flattenKSI flattens KSI indicators across every theme into one
 // ID-keyed map. Indicator IDs follow KSI-THEME-KEY and are unique across
-// the whole dataset by construction.
-func flattenKSI(ds *Dataset) map[string]KSIIndicator {
+// the whole dataset by construction, though - as with FRR above - that's
+// not schema-enforced, hence insertUnique.
+func flattenKSI(ds *Dataset) (map[string]KSIIndicator, error) {
 	out := make(map[string]KSIIndicator)
 	for _, theme := range ds.KSI {
 		for id, ind := range theme.Indicators {
-			out[id] = ind
+			if err := insertUnique(out, id, ind, "KSI indicator"); err != nil {
+				return nil, err
+			}
 		}
 	}
-	return out
+	return out, nil
 }
 
 // flattenCTL flattens CTL control entries across every family into one
-// map keyed by each ControlID's CTLKey() form, e.g. "AC-06-01".
-func flattenCTL(ds *Dataset) map[string]ControlEntry {
+// map keyed by each ControlID's CTLKey() form, e.g. "AC-06-01". The
+// schema's pattern for a nested control key ("^[A-Z]{2}-\d{2}...$")
+// doesn't actually require its two-letter prefix to match the family
+// object it's nested under, so two different families could in
+// principle both contain a key that parses to the same ControlID -
+// hence insertUnique rather than a bare map write here too.
+func flattenCTL(ds *Dataset) (map[string]ControlEntry, error) {
 	out := make(map[string]ControlEntry)
 	for _, fam := range ds.CTL {
 		for id, entry := range fam {
-			out[id.CTLKey()] = entry
+			if err := insertUnique(out, id.CTLKey(), entry, "CTL control"); err != nil {
+				return nil, err
+			}
 		}
 	}
-	return out
+	return out, nil
 }

@@ -1,6 +1,10 @@
 package rules
 
-import "time"
+import (
+	"fmt"
+	"strings"
+	"time"
+)
 
 // Date is a schema "format: date" value: an ISO-8601 calendar date string
 // such as "2026-07-14". It is kept as a string rather than time.Time so
@@ -64,6 +68,21 @@ const (
 	CertificationRev5 CertificationType = "Rev5"
 )
 
+// ParseCertificationType parses s (case-insensitively) as a
+// CertificationType. This is the one place that enumerates valid values,
+// so a caller (e.g. a CLI flag parser) doesn't need its own copy of the
+// enumeration that could silently drift from the constants above.
+func ParseCertificationType(s string) (CertificationType, error) {
+	switch strings.ToLower(s) {
+	case "20x":
+		return Certification20x, nil
+	case "rev5":
+		return CertificationRev5, nil
+	default:
+		return "", fmt.Errorf("rules: %q is not a certification type (want 20x or Rev5)", s)
+	}
+}
+
 // CertificationPath is who runs the certification: FedRAMP's Program path
 // or an individual Agency's authorization path.
 type CertificationPath string
@@ -72,6 +91,18 @@ const (
 	PathProgram CertificationPath = "Program"
 	PathAgency  CertificationPath = "Agency"
 )
+
+// ParseCertificationPath parses s (case-insensitively) as a CertificationPath.
+func ParseCertificationPath(s string) (CertificationPath, error) {
+	switch strings.ToLower(s) {
+	case "program":
+		return PathProgram, nil
+	case "agency":
+		return PathAgency, nil
+	default:
+		return "", fmt.Errorf("rules: %q is not a certification path (want Program or Agency)", s)
+	}
+}
 
 // ClassName is a FedRAMP 20x certification class.
 type ClassName string
@@ -82,6 +113,22 @@ const (
 	ClassC ClassName = "C"
 	ClassD ClassName = "D"
 )
+
+// ParseClassName parses s (case-insensitively) as a ClassName.
+func ParseClassName(s string) (ClassName, error) {
+	switch strings.ToUpper(s) {
+	case "A":
+		return ClassA, nil
+	case "B":
+		return ClassB, nil
+	case "C":
+		return ClassC, nil
+	case "D":
+		return ClassD, nil
+	default:
+		return "", fmt.Errorf("rules: %q is not a certification class (want A, B, C, or D)", s)
+	}
+}
 
 // AffectedParty names who a requirement, indicator, or subset applies to.
 type AffectedParty string

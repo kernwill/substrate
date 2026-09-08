@@ -36,6 +36,7 @@
 package rules
 
 import (
+	"bytes"
 	"encoding/json"
 	"reflect"
 	"strings"
@@ -75,7 +76,7 @@ func decodeWithExtra(data []byte, out any) (Extra, error) {
 // back into the resulting object, so fields decodeWithExtra preserved are
 // not lost on re-encode.
 func encodeWithExtra(v any, extra Extra) ([]byte, error) {
-	b, err := json.Marshal(v)
+	b, err := marshalJSON(v)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +90,37 @@ func encodeWithExtra(v any, extra Extra) ([]byte, error) {
 	for k, rv := range extra {
 		m[k] = rv
 	}
-	return json.Marshal(m)
+	return marshalJSON(m)
+}
+
+// marshalJSON is json.Marshal, except it doesn't HTML-escape "<", ">",
+// and "&". json.Marshal always escapes those (safe for embedding in
+// <script> tags, which nothing here does), and would otherwise silently
+// rewrite real dataset content the moment any typed value in this
+// package is marshaled - e.g. CTL/SI-08's guidance and FRR
+// VER-TFR-IRI's statement both contain a literal ">" today.
+//
+// This alone is NOT sufficient to guarantee escape-free bytes reach a
+// caller: Go's json package re-applies HTML-escaping to a nested
+// json.Marshaler's returned bytes based on the OUTERMOST Marshal/Encode
+// call's own setting, regardless of what that nested Marshaler did
+// internally - a plain top-level json.Marshal(someRule) still escapes
+// today, because the package-level json.Marshal function has no way to
+// disable it. Every caller in this codebase that needs verbatim bytes
+// (cmd/substrate/rulesdiff.go's JSON output, this package's own
+// marshalVerbatim in diff.go) uses its own escape-disabled
+// json.Encoder as the true outermost call, which is what actually makes
+// the fix visible; this function makes it possible for those outer
+// callers to succeed, by not baking the escapes in one level down where
+// no outer setting could undo them.
+func marshalJSON(v any) ([]byte, error) {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(v); err != nil {
+		return nil, err
+	}
+	return bytes.TrimRight(buf.Bytes(), "\n"), nil
 }
 
 // jsonFieldNames returns the JSON object keys that a struct's json tags

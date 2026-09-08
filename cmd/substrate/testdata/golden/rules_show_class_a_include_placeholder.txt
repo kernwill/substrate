@@ -56,6 +56,7 @@ MKT-CSO-MLR	MUST	Marketplace Listing Requirements
 MKT-CSO-PML	MUST	Provider Marketplace Listing Requests
 MKT-FRP-SOF	MUST NOT	Scope of FedRAMP
 SDR-CSX-KMT	MAY	Key Security Indicator Metrics
+VDR-TFR-MVX	SHOULD	Persistent Machine Verification and Validation for 20x
 VDR-TFR-PCD	SHOULD	Persistently Complete Detection
 VDR-TFR-PDD	SHOULD	Persistent Drift Detection
 VDR-TFR-PSD	SHOULD	Persistent Sample Detection
@@ -64,4 +65,4 @@ VER-TFR-EVU	SHOULD	Evaluate Vulnerabilities Quickly
 VER-TFR-IRI	MAY	Internet-Reachable Incidents
 VER-TFR-MRH	MAY	Historical Activity
 VER-TFR-NRI	MAY	Non-Internet-Reachable Incidents
-65 rules
+66 rules

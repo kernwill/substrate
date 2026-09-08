@@ -134,6 +134,47 @@ CLAUDE.md's "say so rather than guessing" rule for undetermined states
 rules out. Treat KSI class-scoping as undetermined until CR26 publishes
 that mapping explicitly.
 
+## Provider/20x rules across all FRR documents (not just the named 9)
+
+The 93-rule figure above is deliberately scoped to the 9 rulesets
+`docs/REQUIREMENTS.md` section 5 names as "the package" (CPO, SCG, SDR)
+and "the [six] assurance rulesets" (VER, CCM, SCN, IVV, AFC, IEC). It is
+not a claim that those are the only FRR documents with real,
+provider-facing, 20x-applicable obligations - they aren't. Six more
+stable FRR documents carry rules that affect Providers under 20x and
+simply aren't part of either named category in that narrative:
+
+| Document | What it covers | Provider/20x rules |
+|---|---|---|
+| MKT | Marketplace Listing | 5 |
+| CDS | Certification Data Sharing | 20 |
+| CMU | Cryptographic Module Usage | 3 |
+| FRC | FedRAMP Certification (the process itself) | 25 |
+| MAS | Minimum Assessment Scope | 5 |
+| VDR | Vulnerability Detection and Response | 17 |
+| **Subtotal, outside the named 9** | | **75** |
+| **Total across all 15 non-placeholder FRR documents** | | **168** |
+
+(REC contributes zero; AGU is excluded entirely, being placeholder-status.)
+
+Per certification class, across all 15 documents rather than just the 9:
+
+| Class | Rules (of 168) |
+|---|---|
+| A | 46 |
+| B | 159 |
+| C | 159 |
+| D | 158 |
+
+This broader figure exists so that "93" is never mistaken for "every
+provider obligation in FedRAMP 20x" - it's the package-and-assurance
+slice the strategy narrative names, not the whole dataset. Both figures
+are recorded in the machine-readable block and checked by
+`TestRuleCountsDocMatchesDataset`, which queries every stable FRR
+document via the same `Dataset.QueryRules` "substrate rules show" itself
+uses, rather than re-implementing subset-resolution logic that could
+silently drift out of sync with it.
+
 ## Machine-readable summary
 
 The block below is parsed directly by `internal/rules/rulecounts_test.go`.
@@ -156,6 +197,8 @@ ksi_indicators_piy: 5
 ksi_indicators_rpl: 4
 ksi_indicators_scr: 2
 ksi_indicators_svc: 8
+ksi_indicators_varying_by_class: 5
+ksi_indicators_varying_by_class_ids: KSI-CNA-EIS,KSI-MLA-ALA,KSI-SVC-PRR,KSI-SVC-RUD,KSI-SVC-VCM
 ctl_families: 14
 ctl_controls: 79
 package_cpo: 4
@@ -174,4 +217,9 @@ class_a: 13
 class_b: 93
 class_c: 93
 class_d: 93
+provider_20x_all_frr_total: 168
+provider_20x_all_frr_class_a: 46
+provider_20x_all_frr_class_b: 159
+provider_20x_all_frr_class_c: 159
+provider_20x_all_frr_class_d: 158
 <!-- rule-counts:end -->
