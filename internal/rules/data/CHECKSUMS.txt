@@ -1,0 +1,2 @@
+135707003f0aaa5ceb10d7d32c2681e5b1585a4eaf4403d0d135837787e5ae8e  internal/rules/data/fedramp-consolidated-rules.json
+ab0d267979ef7c3dd97cf253326d19725b6e945f3784364a8491091a47bdc147  internal/rules/data/fedramp-consolidated-rules.schema.json
