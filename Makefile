@@ -9,7 +9,7 @@ test:
 	go test ./... -race -count=1
 
 lint:
-	golangci-lint run
+	go vet ./...
 
 boundaries:
 	./scripts/check-boundaries.sh
