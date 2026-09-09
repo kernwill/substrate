@@ -44,6 +44,24 @@ type RuleResult struct {
 // is not evidence of compliance" applies to this package's own output,
 // not just the compiler's eventual rule verdicts.
 func (ds *Dataset) QueryRules(q RuleQuery) ([]RuleResult, error) {
+	// RuleQuery's fields are typed (ClassName, not string), but a caller
+	// that builds one directly - rather than through ParseClassName et
+	// al., as cmd/substrate/rules.go does - can still construct an
+	// invalid value with a bare cast or a typo (RuleQuery{Class: "a"}).
+	// Silently returning zero results for that would be indistinguishable
+	// from "this class legitimately has no matching rules" to the caller;
+	// this package's public API should fail as loudly on that as the CLI
+	// already does.
+	if !q.Class.IsValid() {
+		return nil, fmt.Errorf("rules: invalid RuleQuery.Class %q", q.Class)
+	}
+	if !q.Type.IsValid() {
+		return nil, fmt.Errorf("rules: invalid RuleQuery.Type %q", q.Type)
+	}
+	if !q.Path.IsValid() {
+		return nil, fmt.Errorf("rules: invalid RuleQuery.Path %q", q.Path)
+	}
+
 	docKeys := make([]string, 0, len(ds.FRR))
 	for k := range ds.FRR {
 		docKeys = append(docKeys, k)
@@ -93,6 +111,19 @@ func (ds *Dataset) QueryRules(q RuleQuery) ([]RuleResult, error) {
 // VDR-TFR-MVX/MVF (defined under doc.Data.TwentyX/Rev5, but only ever
 // given an applicability definition in the common doc.Info.Subsets, not
 // a type-specific one) go undetected.
+//
+// For container == "" (the "all" bucket), only the common map is
+// consulted - there is no third, "all"-specific override to fall back
+// to. If a subset used under doc.Data.All ever had its only
+// applicability definition sitting in a type-specific block instead of
+// the common one, that would be a genuinely ambiguous shape (which
+// type's override should govern a bucket meant to be shared by both?),
+// and matchRuleContainer correctly surfaces that as a loud error rather
+// than guessing by picking one arbitrarily. That's the intended
+// behavior, not the same gap the VDR case was: today's dataset has no
+// such case (verified in query_test.go), and if a future one appears it
+// should be investigated as a real data anomaly, not silently patched
+// over here.
 func resolveSubsets(doc FRRDocument, container CertificationType) map[string]FRRSubsetDefinition {
 	merged := make(map[string]FRRSubsetDefinition, len(doc.Info.Subsets))
 	for k, v := range doc.Info.Subsets {
@@ -152,7 +183,15 @@ func matchRuleContainer(docKey, containerName string, container map[string]map[s
 // subset's classes.
 func ruleClasses(rule FRRRequirement, subsetClasses []ClassName) []ClassName {
 	if rule.VariesByClass == nil {
-		return subsetClasses
+		// Return a copy, not subsetClasses itself: that slice is backed
+		// by the shared, loaded Dataset's own
+		// FRRSubsetApplicability.Classes field. Nothing mutates the
+		// result today, but handing back a live alias to a caller is a
+		// latent footgun the moment one does (sort it, append past
+		// capacity into an unrelated slice, etc.) - it would corrupt
+		// that field for every other rule in the subset and every
+		// subsequent query against the same in-memory Dataset.
+		return slices.Clone(subsetClasses)
 	}
 	var classes []ClassName
 	for _, c := range [...]ClassName{ClassA, ClassB, ClassC, ClassD} {

@@ -192,6 +192,32 @@ func TestFRRRequirementEffectiveForce(t *testing.T) {
 	}
 }
 
+func TestFRRRequirementUniformForce(t *testing.T) {
+	ds := loadVendoredDataset(t)
+
+	// A genuinely non-varying rule.
+	plain := ds.FRR["AFC"].Data.All["CSO"]["AFC-CSO-INB"]
+	if force, ok := plain.UniformForce(); !ok || force != ForceMust {
+		t.Errorf("AFC-CSO-INB.UniformForce() = (%q, %v), want (%q, true)", force, ok, ForceMust)
+	}
+
+	// A rule whose varies_by_class block gives every defined class the
+	// same force (MUST for a,b,c,d) - only the statement text (a
+	// timeframe) differs. This is the false-"VARIES" case the code
+	// review's ultra pass found: the CLI used to print VARIES for this
+	// rule just because VariesByClass was non-nil.
+	sameForce := ds.FRR["IEC"].Data.All["CSO"]["IEC-CSO-FIR"]
+	if force, ok := sameForce.UniformForce(); !ok || force != ForceMust {
+		t.Errorf("IEC-CSO-FIR.UniformForce() = (%q, %v), want (%q, true)", force, ok, ForceMust)
+	}
+
+	// A rule that genuinely varies by force (MAY/SHOULD/MUST/MUST).
+	varying := ds.FRR["CCM"].Data.All["QTR"]["CCM-QTR-MTG"]
+	if _, ok := varying.UniformForce(); ok {
+		t.Error("CCM-QTR-MTG.UniformForce() reported a uniform force, want (_, false)")
+	}
+}
+
 func TestQueryRulesCombinedFiltersAreConjunctive(t *testing.T) {
 	ds := loadVendoredDataset(t)
 	broad := mustQueryRules(t, ds, RuleQuery{Class: ClassA})
@@ -215,5 +241,46 @@ func TestQueryRulesFailsLoudlyOnUnresolvableSubset(t *testing.T) {
 
 	if _, err := modified.QueryRules(RuleQuery{}); err == nil {
 		t.Fatal("QueryRules succeeded after removing a subset's only applicability definition, want an error")
+	}
+}
+
+// TestQueryRulesRejectsInvalidQueryFields proves QueryRules validates
+// its own RuleQuery fields, so a caller who builds one directly (bypassing
+// ParseClassName et al., e.g. via a typo or a bare cast) gets a loud
+// error instead of a silent, indistinguishable-from-legitimate empty
+// result set.
+func TestQueryRulesRejectsInvalidQueryFields(t *testing.T) {
+	ds := loadVendoredDataset(t)
+
+	cases := []RuleQuery{
+		{Class: "a"},      // wrong case; ClassA is "A"
+		{Class: "E"},      // not a defined class
+		{Type: "rev5"},    // wrong case; CertificationRev5 is "Rev5"
+		{Type: "30x"},     // not a defined type
+		{Path: "program"}, // wrong case; PathProgram is "Program"
+		{Path: "Nowhere"}, // not a defined path
+	}
+	for _, q := range cases {
+		if _, err := ds.QueryRules(q); err == nil {
+			t.Errorf("QueryRules(%+v) succeeded, want an error", q)
+		}
+	}
+}
+
+// TestAllBucketSubsetsAlwaysResolveInCommonSubsets backs resolveSubsets'
+// doc comment: unlike the "20x"/"rev5" buckets, a subset used under
+// doc.Data.All has no type-specific fallback to resolve through, only
+// the common doc.Info.Subsets. This confirms that gap is not currently
+// live - every subset used under "all", across the whole vendored
+// dataset, does have a common definition - so QueryRules({}) never hits
+// the ambiguous case resolveSubsets deliberately declines to guess at.
+func TestAllBucketSubsetsAlwaysResolveInCommonSubsets(t *testing.T) {
+	ds := loadVendoredDataset(t)
+	for docKey, doc := range ds.FRR {
+		for subsetKey := range doc.Data.All {
+			if _, ok := doc.Info.Subsets[subsetKey]; !ok {
+				t.Errorf("FRR[%s].Data.All has subset %q with no common Info.Subsets definition - resolveSubsets has no fallback for this and QueryRules({}) would now error", docKey, subsetKey)
+			}
+		}
 	}
 }

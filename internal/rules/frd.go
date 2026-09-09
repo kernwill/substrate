@@ -101,6 +101,13 @@ func (f FRDDataContainer) MarshalJSON() ([]byte, error) {
 	return encodeWithExtra(frdDataContainerAlias(f), f.Extra)
 }
 
+// Buckets returns f's three certification-type buckets (all, 20x, then
+// rev5, in that fixed order) as a single slice, for callers that need to
+// walk every definition regardless of which bucket it's in.
+func (f FRDDataContainer) Buckets() []map[string]FRDDefinition {
+	return []map[string]FRDDefinition{f.All, f.TwentyX, f.Rev5}
+}
+
 // FRDDefinition is a single defined term (FRD-XXX).
 type FRDDefinition struct {
 	Term            string         `json:"term"`

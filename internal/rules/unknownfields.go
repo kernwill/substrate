@@ -106,11 +106,13 @@ func encodeWithExtra(v any, extra Extra) ([]byte, error) {
 // call's own setting, regardless of what that nested Marshaler did
 // internally - a plain top-level json.Marshal(someRule) still escapes
 // today, because the package-level json.Marshal function has no way to
-// disable it. Every caller in this codebase that needs verbatim bytes
-// (cmd/substrate/rulesdiff.go's JSON output, this package's own
-// marshalVerbatim in diff.go) uses its own escape-disabled
-// json.Encoder as the true outermost call, which is what actually makes
-// the fix visible; this function makes it possible for those outer
+// disable it. This is verified by TestMarshalJSONAloneIsNotEnough, which
+// exists specifically to keep this claim honest. Every caller in this
+// codebase that needs verbatim bytes (cmd/substrate/rulesdiff.go's JSON
+// output, this package's own diffRecords in diff.go, which calls this
+// same marshalJSON directly) uses its own escape-disabled json.Encoder
+// as the true outermost call, which is what actually makes the fix
+// visible; this function makes it possible for those outer
 // callers to succeed, by not baking the escapes in one level down where
 // no outer setting could undo them.
 func marshalJSON(v any) ([]byte, error) {

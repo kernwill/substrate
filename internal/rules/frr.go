@@ -159,6 +159,16 @@ func (f FRRDataContainer) MarshalJSON() ([]byte, error) {
 	return encodeWithExtra(frrDataContainerAlias(f), f.Extra)
 }
 
+// Buckets returns f's three certification-type buckets (all, 20x, then
+// rev5, in that fixed order) as a single slice, for callers that need to
+// walk every rule in a document regardless of which bucket it's in. The
+// three-field enumeration used to be hand-copied at every such call
+// site (diff.go, rulecounts_test.go, dataset_test.go, diff_test.go);
+// this is the one place it's written down now.
+func (f FRRDataContainer) Buckets() []map[string]map[string]FRRRequirement {
+	return []map[string]map[string]FRRRequirement{f.All, f.TwentyX, f.Rev5}
+}
+
 // FRRRequirement is a single rule (e.g. "AFC-FRP-VRE"). Its force and
 // statement either apply uniformly (Statement/Force set, VariesByClass
 // nil) or vary per certification class (VariesByClass set, Statement/
@@ -230,6 +240,37 @@ func (f FRRRequirement) EffectiveForce(class ClassName) ForceLevel {
 		return ""
 	}
 	return level.Force
+}
+
+// UniformForce returns f's single force level and true when every class f
+// defines a level for shares that same force - including a plain,
+// non-varying rule, and, just as importantly, a varies_by_class rule
+// whose force happens not to vary even though something else about it
+// does (the vendored dataset has real examples, e.g. IEC-CSO-FIR: MUST
+// for every one of classes A-D, only the statement's timeframe differs).
+// It returns ("", false) when the force genuinely differs by class -
+// the only case a caller displaying "the" force for a rule without a
+// specific class in hand should render as ambiguous.
+func (f FRRRequirement) UniformForce() (ForceLevel, bool) {
+	if f.VariesByClass == nil {
+		return f.Force, true
+	}
+	var force ForceLevel
+	set := false
+	for _, c := range [...]ClassName{ClassA, ClassB, ClassC, ClassD} {
+		level := f.VariesByClass.Level(c)
+		if level == nil {
+			continue
+		}
+		if !set {
+			force, set = level.Force, true
+			continue
+		}
+		if level.Force != force {
+			return "", false
+		}
+	}
+	return force, set
 }
 
 // FRRVariesByClass holds per-class requirement levels when a rule's force

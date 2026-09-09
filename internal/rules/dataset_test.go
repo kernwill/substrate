@@ -175,7 +175,7 @@ func TestLoadVendoredDatasetCounts(t *testing.T) {
 	}
 	totalRules := 0
 	for _, doc := range ds.FRR {
-		for _, container := range []map[string]map[string]FRRRequirement{doc.Data.All, doc.Data.TwentyX, doc.Data.Rev5} {
+		for _, container := range doc.Data.Buckets() {
 			for _, rules := range container {
 				totalRules += len(rules)
 			}

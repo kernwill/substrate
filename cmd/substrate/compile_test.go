@@ -29,9 +29,16 @@ import (
 //
 // then review the diff before committing.
 func TestGoldenCompile(t *testing.T) {
-	update := *updateGolden || os.Getenv("SUBSTRATE_UPDATE_GOLDEN") != ""
-	goldentest.Run(t, "../../testdata/fixtures", update, runCompileFixture)
+	goldentest.Run(t, "../../testdata/fixtures", goldenUpdateRequested(), runCompileFixture)
 }
+
+// runCompileFixture passes the whole fixture directory - including its
+// own expected/ and NOTES.md - as --source. That's fine while compile
+// is a stub that reads nothing, but it's a known, deliberate limitation
+// once real front-end parsing lands (see testdata/fixtures/minimal/
+// NOTES.md): the real front end will need its own include/exclude rules
+// for what counts as compiler input (a .gitignore-style filter, most
+// likely), which is Phase 1 design work, not something to anticipate here.
 
 // runCompileFixture is the goldentest.Runner for the compile pipeline:
 // it invokes runCompile in-process (no subprocess, no prebuilt binary

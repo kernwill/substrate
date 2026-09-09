@@ -70,3 +70,42 @@ func TestParseCertificationPath(t *testing.T) {
 		t.Error(`ParseCertificationPath("Nowhere") succeeded, want error`)
 	}
 }
+
+func TestClassNameIsValid(t *testing.T) {
+	for _, c := range []ClassName{"", ClassA, ClassB, ClassC, ClassD} {
+		if !c.IsValid() {
+			t.Errorf("ClassName(%q).IsValid() = false, want true", c)
+		}
+	}
+	for _, c := range []ClassName{"a", "E", "class-a"} {
+		if c.IsValid() {
+			t.Errorf("ClassName(%q).IsValid() = true, want false", c)
+		}
+	}
+}
+
+func TestCertificationTypeIsValid(t *testing.T) {
+	for _, c := range []CertificationType{"", Certification20x, CertificationRev5} {
+		if !c.IsValid() {
+			t.Errorf("CertificationType(%q).IsValid() = false, want true", c)
+		}
+	}
+	for _, c := range []CertificationType{"rev5", "20X", "Rev6"} {
+		if c.IsValid() {
+			t.Errorf("CertificationType(%q).IsValid() = true, want false", c)
+		}
+	}
+}
+
+func TestCertificationPathIsValid(t *testing.T) {
+	for _, p := range []CertificationPath{"", PathProgram, PathAgency} {
+		if !p.IsValid() {
+			t.Errorf("CertificationPath(%q).IsValid() = false, want true", p)
+		}
+	}
+	for _, p := range []CertificationPath{"program", "AGENCY", "Nowhere"} {
+		if p.IsValid() {
+			t.Errorf("CertificationPath(%q).IsValid() = true, want false", p)
+		}
+	}
+}

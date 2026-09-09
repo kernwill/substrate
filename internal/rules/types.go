@@ -83,6 +83,21 @@ func ParseCertificationType(s string) (CertificationType, error) {
 	}
 }
 
+// IsValid reports whether c is the zero value (no filter, where c is used
+// as an optional query field) or one of the defined CertificationType
+// constants. A CertificationType built by casting an arbitrary string
+// (rather than through ParseCertificationType) bypasses that validation,
+// which is exactly the gap this method lets a caller like
+// Dataset.QueryRules close at its own API boundary.
+func (c CertificationType) IsValid() bool {
+	switch c {
+	case "", Certification20x, CertificationRev5:
+		return true
+	default:
+		return false
+	}
+}
+
 // CertificationPath is who runs the certification: FedRAMP's Program path
 // or an individual Agency's authorization path.
 type CertificationPath string
@@ -101,6 +116,17 @@ func ParseCertificationPath(s string) (CertificationPath, error) {
 		return PathAgency, nil
 	default:
 		return "", fmt.Errorf("rules: %q is not a certification path (want Program or Agency)", s)
+	}
+}
+
+// IsValid reports whether p is the zero value (no filter) or one of the
+// defined CertificationPath constants.
+func (p CertificationPath) IsValid() bool {
+	switch p {
+	case "", PathProgram, PathAgency:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -127,6 +153,17 @@ func ParseClassName(s string) (ClassName, error) {
 		return ClassD, nil
 	default:
 		return "", fmt.Errorf("rules: %q is not a certification class (want A, B, C, or D)", s)
+	}
+}
+
+// IsValid reports whether c is the zero value (no filter) or one of the
+// defined ClassName constants.
+func (c ClassName) IsValid() bool {
+	switch c {
+	case "", ClassA, ClassB, ClassC, ClassD:
+		return true
+	default:
+		return false
 	}
 }
 

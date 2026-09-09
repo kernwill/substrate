@@ -58,7 +58,7 @@ CDS-UTC-AGA	SHOULD	Agency Access
 CMU-CSO-CAT	SHOULD	Configuration of Agency Tenants
 CMU-CSO-CMD	MUST	Cryptographic Module Documentation
 CMU-CSO-UVM	VARIES	Using Validated Cryptographic Modules
-CPO-CSF-CPM	VARIES	Certification Package Maintenance for Rev5
+CPO-CSF-CPM	MUST	Certification Package Maintenance for Rev5
 CPO-CSO-MTD	MUST	Certification Package Overview Metadata
 CPO-CSO-OSA	VARIES	Overall Summary of Assessment in Certification Package
 CPO-CSO-OVR	MUST	Overview of the Cloud Service Offering
@@ -73,7 +73,7 @@ FRC-CCL-DCC	MUST	Downgrading Certification Class
 FRC-CCL-DNP	SHOULD	Downgrade Notification Period
 FRC-CCL-UCC	MUST	Upgrading Certification Class
 FRC-CSF-ACP	MUST	Assign Control Parameters
-FRC-CSF-BSL	VARIES	FedRAMP Rev5 Baselines
+FRC-CSF-BSL	MUST	FedRAMP Rev5 Baselines
 FRC-CSF-FFG	MUST	Follow FedRAMP Rev5 Controls Guidance
 FRC-CSF-RDY	MUST	FedRAMP Ready Conversion
 FRC-CSO-FCP	MUST	FedRAMP Certification Profile
@@ -85,12 +85,12 @@ IEC-CSO-AIR	SHOULD	Automated Incident Reporting
 IEC-CSO-DPR	MUST	Default PAIN Rating
 IEC-CSO-EFI	SHOULD	Estimate Federal Impact
 IEC-CSO-EFR	MUST	Evaluate FedRAMP Reportability
-IEC-CSO-FIR	VARIES	Final Incident Report
+IEC-CSO-FIR	MUST	Final Incident Report
 IEC-CSO-IIR	VARIES	Initial Incident Report
 IEC-CSO-OIR	VARIES	Ongoing Incident Reports
 IEC-FRP-ORV	MUST	Ongoing Review
 IVV-CSF-ACF	MUST	Assessment of Rev5 Controls with Findings
-IVV-CSF-AIA	VARIES	Annual Independent Assessments for Rev5
+IVV-CSF-AIA	MUST	Annual Independent Assessments for Rev5
 IVV-CSF-MCA	MUST	Mandatory Control Assessment
 IVV-CSF-PCA	SHOULD	Preferred Control Assessment
 IVV-CSO-DUS	MUST	Document Use of Representative Samples
@@ -160,10 +160,10 @@ VDR-CSO-SIR	MAY	Sampling
 VDR-TFR-KEV	SHOULD	Remediate KEVs
 VDR-TFR-MVF	VARIES	Persistent Machine Verification and Validation for Rev5
 VDR-TFR-NMV	MUST	Non-Machine Verification and Validation
-VDR-TFR-PCD	VARIES	Persistently Complete Detection
-VDR-TFR-PDD	VARIES	Persistent Drift Detection
-VDR-TFR-PSD	VARIES	Persistent Sample Detection
-VDR-TFR-PVR	VARIES	Mitigation and Remediation Expectations
+VDR-TFR-PCD	SHOULD	Persistently Complete Detection
+VDR-TFR-PDD	SHOULD	Persistent Drift Detection
+VDR-TFR-PSD	SHOULD	Persistent Sample Detection
+VDR-TFR-PVR	SHOULD	Mitigation and Remediation Expectations
 VDR-TFR-RMN	SHOULD	Remaining Vulnerabilities
 VER-AGM-MAP	SHOULD	Maintain Agency Plans of Action and Milestones
 VER-AGM-RVR	SHOULD	Review Vulnerability Reports
@@ -182,7 +182,7 @@ VER-RPT-NID	MUST NOT	Responsible Disclosure
 VER-RPT-PER	MUST	Persistent Reporting
 VER-RPT-RPD	MAY	Responsible Public Disclosure
 VER-RPT-VDT	MUST	Vulnerability Details
-VER-TFR-EVU	VARIES	Evaluate Vulnerabilities Quickly
+VER-TFR-EVU	SHOULD	Evaluate Vulnerabilities Quickly
 VER-TFR-IRI	VARIES	Internet-Reachable Incidents
 VER-TFR-MAV	MUST	Mark Accepted Vulnerabilities
 VER-TFR-MHR	MUST	Monthly Activity Report

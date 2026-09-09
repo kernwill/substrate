@@ -97,14 +97,17 @@ func runRulesShow(ds *rules.Dataset, args []string, stdout, stderr io.Writer) in
 // ruleForceColumn is the FORCE column for one result row. When the query
 // asked for a specific class, show that class's actual force
 // (FRRRequirement.EffectiveForce resolves a varies_by_class rule down to
-// the right level); otherwise a varying rule has no single force, so say
-// so rather than picking one arbitrarily.
+// the right level). Otherwise, show the single force every defined class
+// shares (FRRRequirement.UniformForce) - a varies_by_class rule doesn't
+// necessarily mean the force itself varies (some only vary the statement
+// text, e.g. a timeframe) - and only fall back to "VARIES" when the
+// force genuinely differs by class.
 func ruleForceColumn(r rules.RuleResult, q rules.RuleQuery) string {
 	if q.Class != "" {
 		return string(r.Rule.EffectiveForce(q.Class))
 	}
-	if r.Rule.VariesByClass != nil {
-		return "VARIES"
+	if force, ok := r.Rule.UniformForce(); ok {
+		return string(force)
 	}
-	return string(r.Rule.Force)
+	return "VARIES"
 }

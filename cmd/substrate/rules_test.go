@@ -2,15 +2,12 @@ package main
 
 import (
 	"bytes"
-	"flag"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/kernwill/substrate/internal/rules"
 )
-
-var updateGolden = flag.Bool("update", false, "update golden files")
 
 const vendoredDatasetPathForCLI = "../../internal/rules/data/fedramp-consolidated-rules.json"
 
@@ -53,7 +50,7 @@ func TestGoldenRulesShow(t *testing.T) {
 			}
 
 			golden := filepath.Join("testdata", "golden", "rules_show_"+c.name+".txt")
-			if *updateGolden {
+			if goldenUpdateRequested() {
 				if err := os.WriteFile(golden, stdout.Bytes(), 0o644); err != nil {
 					t.Fatalf("write golden file: %v", err)
 				}
@@ -99,7 +96,7 @@ func TestGoldenRulesDiff(t *testing.T) {
 			}
 
 			golden := filepath.Join("testdata", "golden", "rules_diff_"+c.name+".txt")
-			if *updateGolden {
+			if goldenUpdateRequested() {
 				if err := os.WriteFile(golden, stdout.Bytes(), 0o644); err != nil {
 					t.Fatalf("write golden file: %v", err)
 				}
@@ -143,6 +140,35 @@ func TestRulesDiffRejectsInvalidFormat(t *testing.T) {
 	code := runRulesDiff([]string{"--format", "yaml", fileA, fileB}, &stdout, &stderr)
 	if code != 2 {
 		t.Errorf("exit code = %d, want 2", code)
+	}
+}
+
+// TestRulesDiffFormatFlagWorksInAnyPosition is a regression test for a
+// bug the code review's ultra pass found: stdlib flag.FlagSet.Parse
+// stops at the first non-flag argument, so a naturally-typed invocation
+// like "diff a.json b.json --format json" (flag after the positionals)
+// silently misparsed as four positional arguments instead of two plus a
+// flag. runRulesDiff now parses arguments by hand instead of via flag.FlagSet.
+func TestRulesDiffFormatFlagWorksInAnyPosition(t *testing.T) {
+	fileA := filepath.Join("testdata", "diff", "a.json")
+	fileB := filepath.Join("testdata", "diff", "b.json")
+
+	cases := [][]string{
+		{"--format", "json", fileA, fileB},
+		{fileA, fileB, "--format", "json"},
+		{fileA, "--format", "json", fileB},
+		{"--format=json", fileA, fileB},
+	}
+	for _, args := range cases {
+		var stdout, stderr bytes.Buffer
+		code := runRulesDiff(args, &stdout, &stderr)
+		if code != 0 {
+			t.Errorf("runRulesDiff(%v): exit code = %d, stderr = %s", args, code, stderr.String())
+			continue
+		}
+		if !bytes.Contains(stdout.Bytes(), []byte(`"from_version"`)) {
+			t.Errorf("runRulesDiff(%v): stdout does not look like JSON output: %s", args, stdout.String())
+		}
 	}
 }
 

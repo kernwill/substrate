@@ -2,12 +2,14 @@ package main
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/kernwill/substrate/internal/rules"
 )
+
+const rulesDiffUsage = "usage: substrate rules diff [--format text|json] <fileA> <fileB>"
 
 // runRulesDiff implements "substrate rules diff <fileA> <fileB>" (T-007,
 // FR-1.4): a structured added/removed/modified diff between two dataset
@@ -15,28 +17,51 @@ import (
 // string against - the only copy of the dataset this project holds is
 // the single vendored, checksummed one - so both arguments are paths to
 // dataset JSON files, not version identifiers.
+//
+// Arguments are parsed by hand rather than via the stdlib flag package:
+// flag.FlagSet.Parse stops at the first non-flag argument, so
+// "diff a.json b.json --format json" (flag after the positionals, a
+// perfectly natural way to type it) would otherwise be misread as four
+// positional arguments instead of two plus a flag. This command's
+// grammar is simple enough (one optional value flag, two required
+// positionals) that a manual scan handles every argument order without
+// that trap.
 func runRulesDiff(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("substrate rules diff", flag.ContinueOnError)
-	fs.SetOutput(stderr)
-	format := fs.String("format", "text", "output format: text or json")
-	fs.Usage = func() {
-		fmt.Fprintln(stderr, "usage: substrate rules diff [--format text|json] <fileA> <fileB>")
-		fs.PrintDefaults()
+	format := "text"
+	var positional []string
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--format" || a == "-format":
+			if i+1 >= len(args) {
+				fmt.Fprintln(stderr, "substrate rules diff: --format requires a value")
+				return 2
+			}
+			i++
+			format = args[i]
+		case strings.HasPrefix(a, "--format="):
+			format = strings.TrimPrefix(a, "--format=")
+		case strings.HasPrefix(a, "-format="):
+			format = strings.TrimPrefix(a, "-format=")
+		case a == "-h" || a == "--help":
+			fmt.Fprintln(stderr, rulesDiffUsage)
+			return 2
+		default:
+			positional = append(positional, a)
+		}
 	}
-	if err := fs.Parse(args); err != nil {
+
+	if len(positional) != 2 {
+		fmt.Fprintf(stderr, "substrate rules diff: want exactly two dataset files, got %d\n", len(positional))
+		fmt.Fprintln(stderr, rulesDiffUsage)
 		return 2
 	}
-	if fs.NArg() != 2 {
-		fmt.Fprintf(stderr, "substrate rules diff: want exactly two dataset files, got %d\n", fs.NArg())
-		fs.Usage()
-		return 2
-	}
-	if *format != "text" && *format != "json" {
-		fmt.Fprintf(stderr, "substrate rules diff: invalid --format %q (want text or json)\n", *format)
+	if format != "text" && format != "json" {
+		fmt.Fprintf(stderr, "substrate rules diff: invalid --format %q (want text or json)\n", format)
 		return 2
 	}
 
-	pathA, pathB := fs.Arg(0), fs.Arg(1)
+	pathA, pathB := positional[0], positional[1]
 	dsA, err := rules.LoadFile(pathA)
 	if err != nil {
 		fmt.Fprintf(stderr, "substrate rules diff: load %s: %v\n", pathA, err)
@@ -54,7 +79,7 @@ func runRulesDiff(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	if *format == "json" {
+	if format == "json" {
 		enc := json.NewEncoder(stdout)
 		enc.SetIndent("", "  ")
 		// The vendored dataset's own rule text uses "<", ">", and "&"

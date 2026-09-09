@@ -206,7 +206,7 @@ func insertUnique[T any](m map[string]T, id string, v T, kind string) error {
 // expected to live in exactly one bucket.
 func flattenFRD(ds *Dataset) (map[string]FRDDefinition, error) {
 	out := make(map[string]FRDDefinition)
-	for _, bucket := range []map[string]FRDDefinition{ds.FRD.Data.All, ds.FRD.Data.TwentyX, ds.FRD.Data.Rev5} {
+	for _, bucket := range ds.FRD.Data.Buckets() {
 		for id, def := range bucket {
 			if err := insertUnique(out, id, def, "FRD definition"); err != nil {
 				return nil, err
@@ -226,7 +226,7 @@ func flattenFRD(ds *Dataset) (map[string]FRDDefinition, error) {
 func flattenFRR(ds *Dataset) (map[string]FRRRequirement, error) {
 	out := make(map[string]FRRRequirement)
 	for _, doc := range ds.FRR {
-		for _, container := range []map[string]map[string]FRRRequirement{doc.Data.All, doc.Data.TwentyX, doc.Data.Rev5} {
+		for _, container := range doc.Data.Buckets() {
 			for _, rules := range container {
 				for id, rule := range rules {
 					if err := insertUnique(out, id, rule, "FRR rule"); err != nil {

@@ -18,7 +18,7 @@ func TestFRDFRRAndKSIIdsAreGloballyUnique(t *testing.T) {
 
 	seenFRD := map[string]bool{}
 	frdCount := 0
-	for _, bucket := range []map[string]FRDDefinition{ds.FRD.Data.All, ds.FRD.Data.TwentyX, ds.FRD.Data.Rev5} {
+	for _, bucket := range ds.FRD.Data.Buckets() {
 		for id := range bucket {
 			if seenFRD[id] {
 				t.Errorf("FRD definition ID %q is not globally unique across applicability buckets", id)
@@ -34,7 +34,7 @@ func TestFRDFRRAndKSIIdsAreGloballyUnique(t *testing.T) {
 	seen := map[string]bool{}
 	count := 0
 	for docKey, doc := range ds.FRR {
-		for _, container := range []map[string]map[string]FRRRequirement{doc.Data.All, doc.Data.TwentyX, doc.Data.Rev5} {
+		for _, container := range doc.Data.Buckets() {
 			for subsetKey, rules := range container {
 				for id := range rules {
 					if seen[id] {

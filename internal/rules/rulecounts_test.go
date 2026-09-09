@@ -43,7 +43,11 @@ func parseRuleCountsDoc(t *testing.T) map[string]string {
 		if !ok {
 			t.Fatalf("%s: malformed line in rule-counts block: %q", ruleCountsDocPath, line)
 		}
-		values[strings.TrimSpace(key)] = strings.TrimSpace(value)
+		key = strings.TrimSpace(key)
+		if _, dup := values[key]; dup {
+			t.Fatalf("%s: duplicate key %q in rule-counts block - the doc now makes two conflicting claims for the same figure", ruleCountsDocPath, key)
+		}
+		values[key] = strings.TrimSpace(value)
 	}
 	if err := sc.Err(); err != nil {
 		t.Fatalf("read %s: %v", ruleCountsDocPath, err)
@@ -117,7 +121,7 @@ func TestRuleCountsDocMatchesDataset(t *testing.T) {
 	}
 	totalRules := 0
 	for _, doc := range ds.FRR {
-		for _, container := range []map[string]map[string]FRRRequirement{doc.Data.All, doc.Data.TwentyX, doc.Data.Rev5} {
+		for _, container := range doc.Data.Buckets() {
 			for _, rules := range container {
 				totalRules += len(rules)
 			}
