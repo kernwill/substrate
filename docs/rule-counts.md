@@ -149,22 +149,22 @@ simply aren't part of either named category in that narrative:
 | MKT | Marketplace Listing | 5 |
 | CDS | Certification Data Sharing | 20 |
 | CMU | Cryptographic Module Usage | 3 |
-| FRC | FedRAMP Certification (the process itself) | 25 |
+| FRC | FedRAMP Certification (the process itself) | 21 |
 | MAS | Minimum Assessment Scope | 5 |
 | VDR | Vulnerability Detection and Response | 17 |
-| **Subtotal, outside the named 9** | | **75** |
-| **Total across all 15 non-placeholder FRR documents** | | **168** |
+| **Subtotal, outside the named 9** | | **71** |
+| **Total across all 15 non-placeholder FRR documents** | | **164** |
 
 (REC contributes zero; AGU is excluded entirely, being placeholder-status.)
 
 Per certification class, across all 15 documents rather than just the 9:
 
-| Class | Rules (of 168) |
+| Class | Rules (of 164) |
 |---|---|
-| A | 46 |
-| B | 159 |
-| C | 159 |
-| D | 158 |
+| A | 43 |
+| B | 155 |
+| C | 155 |
+| D | 154 |
 
 This broader figure exists so that "93" is never mistaken for "every
 provider obligation in FedRAMP 20x" - it's the package-and-assurance
@@ -174,6 +174,16 @@ are recorded in the machine-readable block and checked by
 document via the same `Dataset.QueryRules` "substrate rules show" itself
 uses, rather than re-implementing subset-resolution logic that could
 silently drift out of sync with it.
+
+FRC's count (21, not the 25 a naive count gives) is itself an example of
+why routing through `QueryRules` matters: FRC's `CLA` subset lives in
+the shared `data.all` bucket but is 20x-only per its own
+`applicability.types`, while its `CCL` and `APS` subsets - also in
+`data.all` - are Rev5-only. An earlier version of `QueryRules` checked
+only `Path` and `Class`, never `Type`, so `--type 20x` and `--type Rev5`
+each silently included rules that don't apply under the requested
+certification type. Fixed once, in the one place both this figure and
+`substrate rules show --type` depend on.
 
 ## Machine-readable summary
 
@@ -217,9 +227,9 @@ class_a: 13
 class_b: 93
 class_c: 93
 class_d: 93
-provider_20x_all_frr_total: 168
-provider_20x_all_frr_class_a: 46
-provider_20x_all_frr_class_b: 159
-provider_20x_all_frr_class_c: 159
-provider_20x_all_frr_class_d: 158
+provider_20x_all_frr_total: 164
+provider_20x_all_frr_class_a: 43
+provider_20x_all_frr_class_b: 155
+provider_20x_all_frr_class_c: 155
+provider_20x_all_frr_class_d: 154
 <!-- rule-counts:end -->

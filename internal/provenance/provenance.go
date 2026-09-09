@@ -19,10 +19,14 @@ type SourceType string
 
 // Locator pinpoints exactly where a fact came from (FR-4.1): a file and
 // line for a statically-collected fact, or an API name and the
-// parameters used to call it for a fact observed live. Populate exactly
-// one pair - Path (with optional Line) for static sources, or API (with
-// optional Parameters) for live ones - matching which kind SourceType
-// names.
+// parameters used to call it for a live one. Populate exactly one pair -
+// Path (with optional Line), or API (with optional Parameters) - never
+// both; Record.Validate rejects a Locator that sets neither or both.
+// Which pair is appropriate for a given SourceType is a convention for
+// collectors to follow, not something this type enforces: SourceType is
+// intentionally open-ended (see its own doc comment), so there's no
+// fixed static-vs-live classification of source type strings for this
+// package to check against.
 type Locator struct {
 	Path string `json:"path,omitempty"`
 	// Line is 1-indexed, matching how editors and diff tools report
@@ -36,9 +40,9 @@ type Locator struct {
 // Basis says whether a fact reflects declared configuration (what the
 // customer's source of truth says should be true) or observed runtime
 // state (what a live check found to actually be true). This is a
-// first-class field, not an afterthought: CR26 separates evidence of
-// implementation from evidence of effectiveness and requires both
-// (FR-4.2).
+// first-class field, not an afterthought: the target certification
+// regime separates evidence of implementation from evidence of
+// effectiveness and requires both (FR-4.2).
 type Basis string
 
 const (
@@ -112,6 +116,9 @@ func (r Record) Validate() error {
 	}
 	if r.Locator.Path == "" && r.Locator.API == "" {
 		return fmt.Errorf("provenance: locator must set path or api")
+	}
+	if r.Locator.Path != "" && r.Locator.API != "" {
+		return fmt.Errorf("provenance: locator sets both path and api - exactly one pair, per FR-4.1's file-and-line OR api-and-parameters")
 	}
 	if r.Timestamp.IsZero() {
 		return fmt.Errorf("provenance: timestamp is required")

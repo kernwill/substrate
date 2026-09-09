@@ -2,10 +2,21 @@
 // generic mechanism for walking testdata/fixtures/*/, running a
 // caller-supplied pipeline against each one, and comparing the result
 // against a checked-in expected/ directory. It is framework-agnostic -
-// it doesn't know about Terraform, Kubernetes, or FedRAMP - so the same
-// harness serves any future fixture-driven test in this repo (a
-// front-end parser, an IR snapshot, a backend artifact emitter), not
-// just "substrate compile".
+// it doesn't know about Terraform, Kubernetes, or FedRAMP - so it's
+// meant to serve any future test whose fixture is naturally a
+// directory of input files compared against a directory of output
+// files (a front-end parser, an IR snapshot, a backend artifact
+// emitter), not just "substrate compile".
+//
+// It is not the only golden-testing pattern in this repo, nor should it
+// be: cmd/substrate's rules-show and rules-diff golden tests compare a
+// single CLI invocation's stdout against one checked-in text file each
+// (testdata/golden/*.txt) - there's no fixture directory of input files
+// to walk, so forcing that shape through this package's directory model
+// would add indirection without buying anything. Use this package when
+// a fixture genuinely is a directory (or will need to become one); a
+// single expected-output file next to the test that produces it is
+// simpler and is not a gap to close.
 //
 // Fixtures are this project's regression net (see
 // testdata/fixtures/minimal/README.md and CLAUDE.md's "write the golden

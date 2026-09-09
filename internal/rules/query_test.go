@@ -102,6 +102,72 @@ func TestQueryRulesTypeFilterIncludesSharedAndTypeSpecificRules(t *testing.T) {
 	}
 }
 
+// TestQueryRulesTypeFilterAppliesWithinSharedContainer is a direct
+// regression test for a bug the code-review's ultra pass found: the
+// type filter was never actually checked against a subset's own
+// applicability.types - only Path and Class were. That went undetected
+// by TestQueryRulesTypeFilterIncludesSharedAndTypeSpecificRules above
+// because AFC-CSO-INB's subset allows both 20x and Rev5, so it passed
+// whether or not Types was actually being checked.
+//
+// FRC's "CLA" subset lives in the shared data.all bucket (like AFC-CSO)
+// but its applicability.types is ["20x"] only; FRC's "CCL" and "APS"
+// subsets, also in data.all, are ["Rev5"] only. Reproduced live before
+// the fix: `substrate rules show --type Rev5` included FRC-CLA-ASF, and
+// `--type 20x` included FRC-CCL-DCC and FRC-APS-ATO.
+func TestQueryRulesTypeFilterAppliesWithinSharedContainer(t *testing.T) {
+	ds := loadVendoredDataset(t)
+
+	twentyX := resultIDs(mustQueryRules(t, ds, RuleQuery{Type: Certification20x}))
+	if !twentyX["FRC-CLA-ASF"] {
+		t.Error(`QueryRules({Type: Certification20x}) is missing "FRC-CLA-ASF" (subset CLA is 20x-only, in the shared "all" container)`)
+	}
+	if twentyX["FRC-CCL-DCC"] {
+		t.Error(`QueryRules({Type: Certification20x}) included "FRC-CCL-DCC", whose subset (CCL) is Rev5-only`)
+	}
+	if twentyX["FRC-APS-ATO"] {
+		t.Error(`QueryRules({Type: Certification20x}) included "FRC-APS-ATO", whose subset (APS) is Rev5-only`)
+	}
+
+	rev5 := resultIDs(mustQueryRules(t, ds, RuleQuery{Type: CertificationRev5}))
+	if rev5["FRC-CLA-ASF"] {
+		t.Error(`QueryRules({Type: CertificationRev5}) included "FRC-CLA-ASF", whose subset (CLA) is 20x-only`)
+	}
+	if !rev5["FRC-CCL-DCC"] {
+		t.Error(`QueryRules({Type: CertificationRev5}) is missing "FRC-CCL-DCC" (subset CCL is Rev5-only, in the shared "all" container)`)
+	}
+	if !rev5["FRC-APS-ATO"] {
+		t.Error(`QueryRules({Type: CertificationRev5}) is missing "FRC-APS-ATO" (subset APS is Rev5-only, in the shared "all" container)`)
+	}
+}
+
+// TestQueryRulesTypeFilterExcludesEmptyApplicabilitySubsets pins down a
+// real, deliberate (documented in matchRuleContainer) behavior: some
+// stable subsets - MKT's IAS/CAS, all affecting Assessors/Advisors
+// rather than Providers - have applicability.types as an empty array,
+// not a populated one restricted to a single value like FRC's. A --type
+// filter excludes these rules entirely, even though they show up fine
+// unfiltered; this test exists so a future change to how empty
+// applicability arrays are handled is a deliberate decision, not an
+// accidental side effect noticed only by a golden-fixture diff.
+func TestQueryRulesTypeFilterExcludesEmptyApplicabilitySubsets(t *testing.T) {
+	ds := loadVendoredDataset(t)
+
+	unfiltered := resultIDs(mustQueryRules(t, ds, RuleQuery{}))
+	if !unfiltered["MKT-IAS-OFR"] {
+		t.Fatal(`QueryRules({}) is missing "MKT-IAS-OFR" - test assumption invalid`)
+	}
+
+	twentyX := resultIDs(mustQueryRules(t, ds, RuleQuery{Type: Certification20x}))
+	if twentyX["MKT-IAS-OFR"] {
+		t.Error(`QueryRules({Type: Certification20x}) included "MKT-IAS-OFR", whose subset (IAS) has an empty applicability.types array`)
+	}
+	rev5 := resultIDs(mustQueryRules(t, ds, RuleQuery{Type: CertificationRev5}))
+	if rev5["MKT-IAS-OFR"] {
+		t.Error(`QueryRules({Type: CertificationRev5}) included "MKT-IAS-OFR", whose subset (IAS) has an empty applicability.types array`)
+	}
+}
+
 // TestQueryRulesTypeFilterResolvesCommonSubsetFallback is a direct
 // regression test for the bug the code-review's ultra pass found: VDR's
 // "TFR" subset has an applicability definition only in the common
@@ -189,6 +255,20 @@ func TestFRRRequirementEffectiveForce(t *testing.T) {
 	uniform := ds.FRR["AFC"].Data.All["CSO"]["AFC-CSO-INB"]
 	if got, want := uniform.EffectiveForce(ClassC), ForceMust; got != want {
 		t.Errorf("AFC-CSO-INB.EffectiveForce(ClassC) = %q, want %q (uniform rule)", got, want)
+	}
+
+	// Documents a real limitation, not a bug: AFC-CSO-INB's subset (CSO)
+	// only scopes to B/C/D, not A, but EffectiveForce has no way to know
+	// that - a FRRRequirement doesn't carry its own containing subset.
+	// Calling it directly on a class the subset excludes still returns
+	// the uniform Force, per EffectiveForce's own documented contract.
+	// This is safe in this package because query.go's ruleClasses
+	// (which does have the subset's Applicability.Classes) always
+	// filters *before* any caller reaches EffectiveForce - a future
+	// caller that skips that step would get a misleading answer, which
+	// is exactly why this is pinned down here.
+	if got, want := uniform.EffectiveForce(ClassA), ForceMust; got != want {
+		t.Errorf("AFC-CSO-INB.EffectiveForce(ClassA) = %q, want %q (documented behavior: EffectiveForce alone can't know class A is out of scope for this rule's subset)", got, want)
 	}
 }
 

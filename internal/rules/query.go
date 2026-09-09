@@ -30,7 +30,6 @@ type RuleResult struct {
 	Subset   string // subset key, e.g. "CSO"
 	ID       string // full rule ID, e.g. "AFC-CSO-INB"
 	Rule     FRRRequirement
-	Status   DocumentStatus
 }
 
 // QueryRules returns every FRR rule in ds matching q, sorted by rule ID.
@@ -75,21 +74,21 @@ func (ds *Dataset) QueryRules(q RuleQuery) ([]RuleResult, error) {
 			continue
 		}
 
-		r, err := matchRuleContainer(docKey, "all", doc.Data.All, resolveSubsets(doc, ""), doc.Info.Status, q)
+		r, err := matchRuleContainer(docKey, "all", doc.Data.All, resolveSubsets(doc, ""), q)
 		if err != nil {
 			return nil, err
 		}
 		results = append(results, r...)
 
 		if q.Type == "" || q.Type == Certification20x {
-			r, err := matchRuleContainer(docKey, "20x", doc.Data.TwentyX, resolveSubsets(doc, Certification20x), doc.Info.Status, q)
+			r, err := matchRuleContainer(docKey, "20x", doc.Data.TwentyX, resolveSubsets(doc, Certification20x), q)
 			if err != nil {
 				return nil, err
 			}
 			results = append(results, r...)
 		}
 		if q.Type == "" || q.Type == CertificationRev5 {
-			r, err := matchRuleContainer(docKey, "rev5", doc.Data.Rev5, resolveSubsets(doc, CertificationRev5), doc.Info.Status, q)
+			r, err := matchRuleContainer(docKey, "rev5", doc.Data.Rev5, resolveSubsets(doc, CertificationRev5), q)
 			if err != nil {
 				return nil, err
 			}
@@ -148,13 +147,29 @@ func resolveSubsets(doc FRRDocument, container CertificationType) map[string]FRR
 
 // matchRuleContainer filters one data container (the rules under "all",
 // "20x", or "rev5" for a single FRR document, named by containerName for
-// error messages) against q's path and class filters.
-func matchRuleContainer(docKey, containerName string, container map[string]map[string]FRRRequirement, subsets map[string]FRRSubsetDefinition, status DocumentStatus, q RuleQuery) ([]RuleResult, error) {
+// error messages) against q's type, path, and class filters.
+//
+// A subset's applicability.types/paths/classes fields are sometimes
+// entirely empty arrays in the vendored dataset - not restricted-to-one-
+// value like FRC's CLA/CCL/APS subsets, but empty. This is consistently
+// true of subsets affecting Assessors, Advisors, or FedRAMP itself (e.g.
+// MKT's IAS/CAS, REC's FRP/IAS), never of Provider-facing ones. Rather
+// than guess what an empty array is supposed to mean (universally
+// applicable? not yet classified?), this treats it exactly like a
+// populated-but-non-matching array: it excludes the rule from any
+// --type/--path/--class-filtered query while still including it in an
+// unfiltered one. That's a real, deliberate behavior a caller can rely
+// on, not an accident, but it's worth knowing about before trusting
+// --type/--path output as complete for a document with such subsets.
+func matchRuleContainer(docKey, containerName string, container map[string]map[string]FRRRequirement, subsets map[string]FRRSubsetDefinition, q RuleQuery) ([]RuleResult, error) {
 	var out []RuleResult
 	for subsetKey, rules := range container {
 		def, ok := subsets[subsetKey]
 		if !ok {
 			return nil, fmt.Errorf("rules: FRR[%s].data.%s has subset %q with %d rule(s) but no matching applicability definition in info.subsets or the %s-specific override", docKey, containerName, subsetKey, len(rules), containerName)
+		}
+		if q.Type != "" && !slices.Contains(def.Applicability.Types, q.Type) {
+			continue
 		}
 		if q.Path != "" && !slices.Contains(def.Applicability.Paths, q.Path) {
 			continue
@@ -163,7 +178,7 @@ func matchRuleContainer(docKey, containerName string, container map[string]map[s
 			if q.Class != "" && !slices.Contains(ruleClasses(rule, def.Applicability.Classes), q.Class) {
 				continue
 			}
-			out = append(out, RuleResult{Document: docKey, Subset: subsetKey, ID: ruleID, Rule: rule, Status: status})
+			out = append(out, RuleResult{Document: docKey, Subset: subsetKey, ID: ruleID, Rule: rule})
 		}
 	}
 	return out, nil
@@ -194,7 +209,7 @@ func ruleClasses(rule FRRRequirement, subsetClasses []ClassName) []ClassName {
 		return slices.Clone(subsetClasses)
 	}
 	var classes []ClassName
-	for _, c := range [...]ClassName{ClassA, ClassB, ClassC, ClassD} {
+	for _, c := range AllClasses {
 		if rule.VariesByClass.Level(c) != nil {
 			classes = append(classes, c)
 		}

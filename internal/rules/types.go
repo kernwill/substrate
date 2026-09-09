@@ -2,6 +2,7 @@ package rules
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 )
@@ -140,6 +141,15 @@ const (
 	ClassD ClassName = "D"
 )
 
+// AllClasses lists every defined ClassName, in the fixed order A, B, C,
+// D. This is the one place that enumeration lives: IsValid derives from
+// it, and callers elsewhere in this package that need to walk "every
+// class a rule might apply to" (FRRRequirement.UniformForce, query.go's
+// ruleClasses) range over this instead of carrying their own copy of the
+// four-element literal that could drift from ParseClassName's own switch
+// if a class were ever added, renamed, or removed.
+var AllClasses = []ClassName{ClassA, ClassB, ClassC, ClassD}
+
 // ParseClassName parses s (case-insensitively) as a ClassName.
 func ParseClassName(s string) (ClassName, error) {
 	switch strings.ToUpper(s) {
@@ -159,12 +169,10 @@ func ParseClassName(s string) (ClassName, error) {
 // IsValid reports whether c is the zero value (no filter) or one of the
 // defined ClassName constants.
 func (c ClassName) IsValid() bool {
-	switch c {
-	case "", ClassA, ClassB, ClassC, ClassD:
+	if c == "" {
 		return true
-	default:
-		return false
 	}
+	return slices.Contains(AllClasses, c)
 }
 
 // AffectedParty names who a requirement, indicator, or subset applies to.

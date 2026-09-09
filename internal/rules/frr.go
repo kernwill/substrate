@@ -228,9 +228,19 @@ func (f FRRRequirement) ControlIDs() ([]ControlID, error) {
 
 // EffectiveForce returns f's force level for a specific certification
 // class: the class-specific force from VariesByClass when f varies by
-// class, otherwise f's uniform Force. The zero value means f doesn't
-// apply to class at all (e.g. a rule whose VariesByClass has no "a"
-// entry, queried for ClassA).
+// class, otherwise f's uniform Force.
+//
+// The zero value reliably means "f doesn't apply to class" only for a
+// class-varying rule (VariesByClass has no entry for class). A
+// FRRRequirement has no notion of its own containing subset - that
+// context lives one layer up, in FRRSubsetApplicability - so for a
+// uniform rule (VariesByClass == nil) this always returns f.Force for
+// any class asked, even one the rule's subset doesn't actually scope to.
+// Callers must establish applicability themselves first (as
+// query.go's ruleClasses does, using the subset's Applicability.Classes)
+// before calling EffectiveForce - this method only answers "what does
+// the rule itself say for this class," never "does this rule apply to
+// this class at all."
 func (f FRRRequirement) EffectiveForce(class ClassName) ForceLevel {
 	if f.VariesByClass == nil {
 		return f.Force
@@ -257,7 +267,7 @@ func (f FRRRequirement) UniformForce() (ForceLevel, bool) {
 	}
 	var force ForceLevel
 	set := false
-	for _, c := range [...]ClassName{ClassA, ClassB, ClassC, ClassD} {
+	for _, c := range AllClasses {
 		level := f.VariesByClass.Level(c)
 		if level == nil {
 			continue

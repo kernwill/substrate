@@ -59,6 +59,14 @@ func TestRecordValidateRejectsEmptyLocator(t *testing.T) {
 	}
 }
 
+func TestRecordValidateRejectsLocatorWithBothPathAndAPI(t *testing.T) {
+	r := validRecord()
+	r.Locator = Locator{Path: "main.tf", API: "iam:GetAccountPasswordPolicy"}
+	if err := r.Validate(); err == nil {
+		t.Error("Validate() = nil, want error for a locator setting both path and api")
+	}
+}
+
 func TestRecordValidateRejectsZeroTimestamp(t *testing.T) {
 	r := validRecord()
 	r.Timestamp = time.Time{}

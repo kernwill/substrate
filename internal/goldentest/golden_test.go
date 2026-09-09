@@ -2,6 +2,7 @@ package goldentest
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -185,5 +186,42 @@ func TestRunUpdateRegeneratesRatherThanFailing(t *testing.T) {
 	got := readExpected(t, filepath.Join(fixtureDir, "expected"))
 	if string(got["out.txt"]) != "freshly generated" {
 		t.Errorf(`expected/out.txt = %q, want "freshly generated"`, got["out.txt"])
+	}
+}
+
+// TestRunReportsAMismatchAsAFailure proves Run's actual *testing.T
+// integration - not just compareArtifacts' pure logic (tested above) -
+// really does fail a test when a fixture's output no longer matches
+// expected/. This is what make golden's "fails loudly when expected
+// output differs" promise ultimately rests on, and every other test in
+// this file deliberately avoids exercising it directly, since a nested
+// t.Run failure propagates to whatever test called it - there is no way
+// to assert "this call correctly failed" from inside the same test
+// binary run without that assertion itself failing.
+//
+// So this runs in a real subprocess: re-invoke this same test binary
+// filtered to just this test, with an environment variable telling it
+// to actually drive a mismatching Run call instead of recursing, and
+// check that the subprocess exits non-zero and its output names the
+// mismatch. This is the standard Go idiom for testing code whose job is
+// to fail a test (compare cmd/go's or os/exec's own tests).
+func TestRunReportsAMismatchAsAFailure(t *testing.T) {
+	if os.Getenv("GOLDENTEST_DRIVE_MISMATCH") == "1" {
+		fixturesRoot := t.TempDir()
+		writeFile(t, filepath.Join(fixturesRoot, "case1", "expected", "out.txt"), "expected output")
+		Run(t, fixturesRoot, false, func(t *testing.T, dir string) map[string][]byte {
+			return map[string][]byte{"out.txt": []byte("actual output, deliberately different")}
+		})
+		return
+	}
+
+	cmd := exec.Command(os.Args[0], "-test.run=^TestRunReportsAMismatchAsAFailure$", "-test.v")
+	cmd.Env = append(os.Environ(), "GOLDENTEST_DRIVE_MISMATCH=1")
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("subprocess succeeded, want it to fail on a deliberate mismatch\n--- subprocess output ---\n%s", out)
+	}
+	if !strings.Contains(string(out), "does not match expected/") {
+		t.Errorf("subprocess failed (as expected), but its output doesn't name the mismatch:\n%s", out)
 	}
 }

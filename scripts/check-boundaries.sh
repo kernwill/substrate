@@ -22,13 +22,19 @@ check() {
   fi
 }
 
-check "internal/frontend" "internal/backends" "Framework logic must live in backends only."
-check "internal/ir"       "internal/backends" "The IR is framework-agnostic by definition."
-check "internal/ir"       "internal/frontend" "The IR consumes facts through interfaces, not concrete parsers."
+check "internal/frontend"   "internal/backends" "Framework logic must live in backends only."
+check "internal/ir"         "internal/backends" "The IR is framework-agnostic by definition."
+check "internal/ir"         "internal/frontend" "The IR consumes facts through interfaces, not concrete parsers."
+# internal/provenance is a transitive dependency of internal/ir (Node and
+# Edge embed provenance.Record) - the same two invariants above apply to
+# it one hop out, or a violation there would reach the IR anyway without
+# either check above ever seeing it.
+check "internal/provenance" "internal/backends" "Provenance is shared by frontend and ir; it must stay framework-agnostic too."
+check "internal/provenance" "internal/frontend" "Provenance must not depend on the collectors that produce it."
 
-if grep -rniE --include="*.go" "\b(ksi|fedramp|cmmc|pci[-_ ]?dss)\b" internal/ir 2>/dev/null \
+if grep -rniE --include="*.go" "\b(ksi|fedramp|cmmc|pci[-_ ]?dss)\b" internal/ir internal/provenance 2>/dev/null \
    | grep -v 'substrate:allow-vocab'; then
-  echo "BOUNDARY VIOLATION: framework vocabulary found in internal/ir"
+  echo "BOUNDARY VIOLATION: framework vocabulary found in internal/ir or internal/provenance"
   fail=1
 fi
 

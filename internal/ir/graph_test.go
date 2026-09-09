@@ -175,6 +175,30 @@ func TestGraphValidate(t *testing.T) {
 	}
 }
 
+// TestGraphValidateRejectsDanglingEdge is a regression test for a gap
+// the code review's ultra pass found: Validate checked each node and
+// edge for internal well-formedness but never that an edge's From/To
+// actually referenced a node present in the graph.
+func TestGraphValidateRejectsDanglingEdgeFrom(t *testing.T) {
+	g := Graph{
+		Nodes: []Node{validNode("n2")},
+		Edges: []Edge{validEdge("n1", "n2")}, // "n1" is not in Nodes
+	}
+	if err := g.Validate(); err == nil {
+		t.Error("Validate() = nil, want error for an edge whose From-node is not in the graph")
+	}
+}
+
+func TestGraphValidateRejectsDanglingEdgeTo(t *testing.T) {
+	g := Graph{
+		Nodes: []Node{validNode("n1")},
+		Edges: []Edge{validEdge("n1", "n2")}, // "n2" is not in Nodes
+	}
+	if err := g.Validate(); err == nil {
+		t.Error("Validate() = nil, want error for an edge whose To-node is not in the graph")
+	}
+}
+
 func TestReadNodesJSONLSkipsBlankLines(t *testing.T) {
 	r := strings.NewReader("\n\n")
 	nodes, err := ReadNodesJSONL(r)
