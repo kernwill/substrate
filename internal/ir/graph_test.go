@@ -191,6 +191,66 @@ func TestWriteEdgesJSONLIsByteReproducibleForTiedSortKey(t *testing.T) {
 	}
 }
 
+func TestWriteReadAttestationsJSONLRoundTrip(t *testing.T) {
+	want := []Attestation{validAttestation("a1"), validAttestation("a2")}
+
+	var buf bytes.Buffer
+	if err := WriteAttestationsJSONL(&buf, want); err != nil {
+		t.Fatalf("WriteAttestationsJSONL: %v", err)
+	}
+	got, err := ReadAttestationsJSONL(&buf)
+	if err != nil {
+		t.Fatalf("ReadAttestationsJSONL: %v", err)
+	}
+	if len(got) != len(want) {
+		t.Fatalf("read %d attestations, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if err := got[i].Validate(); err != nil {
+			t.Errorf("round-tripped attestation %d failed Validate(): %v", i, err)
+		}
+	}
+}
+
+// TestWriteAttestationsJSONLSortsByID backs FR-5.3 for Attestation the
+// same way TestWriteNodesJSONLSortsByID does for Node.
+func TestWriteAttestationsJSONLSortsByID(t *testing.T) {
+	unsorted := []Attestation{validAttestation("a3"), validAttestation("a1"), validAttestation("a2")}
+
+	var buf bytes.Buffer
+	if err := WriteAttestationsJSONL(&buf, unsorted); err != nil {
+		t.Fatalf("WriteAttestationsJSONL: %v", err)
+	}
+	got, err := ReadAttestationsJSONL(&buf)
+	if err != nil {
+		t.Fatalf("ReadAttestationsJSONL: %v", err)
+	}
+	wantOrder := []AttestationID{"a1", "a2", "a3"}
+	for i, id := range wantOrder {
+		if got[i].ID != id {
+			t.Errorf("attestation[%d].ID = %q, want %q", i, got[i].ID, id)
+		}
+	}
+}
+
+// TestWriteAttestationsJSONLIsByteReproducible backs FR-5.3 directly for
+// Attestation, mirroring TestWriteNodesJSONLIsByteReproducible.
+func TestWriteAttestationsJSONLIsByteReproducible(t *testing.T) {
+	a := []Attestation{validAttestation("a1"), validAttestation("a2")}
+	b := []Attestation{validAttestation("a2"), validAttestation("a1")}
+
+	var bufA, bufB bytes.Buffer
+	if err := WriteAttestationsJSONL(&bufA, a); err != nil {
+		t.Fatalf("WriteAttestationsJSONL(a): %v", err)
+	}
+	if err := WriteAttestationsJSONL(&bufB, b); err != nil {
+		t.Fatalf("WriteAttestationsJSONL(b): %v", err)
+	}
+	if bufA.String() != bufB.String() {
+		t.Errorf("output differs by input order:\n--- a ---\n%s\n--- b ---\n%s", bufA.String(), bufB.String())
+	}
+}
+
 func TestGraphValidate(t *testing.T) {
 	g := Graph{
 		Nodes: []Node{validNode("n1"), validNode("n2")},
@@ -222,6 +282,50 @@ func TestGraphValidateRejectsDuplicateNodeID(t *testing.T) {
 	g := Graph{Nodes: []Node{n1, n2}}
 	if err := g.Validate(); err == nil {
 		t.Error("Validate() = nil, want error for duplicate node ID")
+	}
+}
+
+// TestGraphValidateRejectsDuplicateAttestationID mirrors
+// TestGraphValidateRejectsDuplicateNodeID for Attestation.
+func TestGraphValidateRejectsDuplicateAttestationID(t *testing.T) {
+	a1 := validAttestation("a1")
+	a2 := validAttestation("a1")
+	a2.Attester = "a different attester"
+	g := Graph{Attestations: []Attestation{a1, a2}}
+	if err := g.Validate(); err == nil {
+		t.Error("Validate() = nil, want error for duplicate attestation ID")
+	}
+}
+
+func TestGraphValidatePropagatesInvalidAttestation(t *testing.T) {
+	a := validAttestation("a1")
+	a.Statement = ""
+	g := Graph{Attestations: []Attestation{a}}
+	if err := g.Validate(); err == nil {
+		t.Error("Validate() = nil, want error propagated from an invalid attestation")
+	}
+}
+
+// TestGraphValidateAcceptsSplitControlSatisfaction is the FR-5.8 case
+// straight from the crosswalk analysis: one control (here SC-12) backed
+// by both a derivable Node (automated key rotation, evidenced
+// mechanically) and a non-derivable Attestation (the manual ceremony
+// portion). Neither one stands in for the whole control, and the graph
+// validates cleanly with both present - the whole point of keeping them
+// as separate, independently-valid pieces of evidence rather than
+// forcing one verdict for the control.
+func TestGraphValidateAcceptsSplitControlSatisfaction(t *testing.T) {
+	n := validNode("n1")
+	n.ControlFamily = "SC"
+	n.Controls = []Control{{Family: "SC", Base: 12}}
+	n.Kind = "key_rotation_policy"
+	n.Attributes = map[string]string{"rotation_days": "90"}
+
+	a := validAttestation("a1")
+
+	g := Graph{Nodes: []Node{n}, Attestations: []Attestation{a}}
+	if err := g.Validate(); err != nil {
+		t.Errorf("Validate() = %v, want nil for a control split across a Node and an Attestation", err)
 	}
 }
 

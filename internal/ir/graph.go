@@ -11,32 +11,34 @@ import (
 
 // SchemaVersion is this package's own JSON schema version (FR-5.4),
 // independent of any framework dataset's version. Bump it whenever
-// Node's or Edge's serialized shape changes in a way that breaks an old
-// artifact's readability, and add a migration path for existing
-// artifacts rather than just changing the number.
+// Node's, Edge's, or Attestation's serialized shape changes in a way
+// that breaks an old artifact's readability, and add a migration path
+// for existing artifacts rather than just changing the number.
 const SchemaVersion = "1"
 
-// Graph is an in-memory evidence graph: a set of nodes (facts) and
-// edges (relationships between them), per FR-5.1. It is not itself a
-// serialization format - WriteNodesJSONL and WriteEdgesJSONL write its
-// two parts as two independent JSON Lines streams (see their doc
-// comments for why they're kept separate rather than merged into one
-// mixed stream).
+// Graph is an in-memory evidence graph: a set of nodes (facts), edges
+// (relationships between them), and attestations (human testimony for a
+// control's non-derivable portion, FR-5.8), per FR-5.1. It is not itself
+// a serialization format - WriteNodesJSONL, WriteEdgesJSONL, and
+// WriteAttestationsJSONL write its three parts as independent JSON Lines
+// streams (see their doc comments for why they're kept separate rather
+// than merged into one mixed stream).
 type Graph struct {
-	Nodes []Node
-	Edges []Edge
+	Nodes        []Node
+	Edges        []Edge
+	Attestations []Attestation
 }
 
-// Validate checks every node and edge in g for internal well-formedness,
-// that no two nodes share an ID, and that every edge's From and To
-// reference a node actually present in g.Nodes. A dangling edge - one
-// whose endpoint was dropped or never added - must fail here, loudly and
-// cheaply, rather than surface later as a nil lookup or a silently-skipped
-// edge in whatever consumes the graph next. A duplicate node ID gets the
-// same treatment: silently keeping the last one seen (what a naive
-// map[NodeID]Node build would do) would make one of the two nodes
-// disappear from the graph with no indication which, or that anything was
-// lost at all.
+// Validate checks every node, edge, and attestation in g for internal
+// well-formedness, that no two nodes (or two attestations) share an ID,
+// and that every edge's From and To reference a node actually present in
+// g.Nodes. A dangling edge - one whose endpoint was dropped or never
+// added - must fail here, loudly and cheaply, rather than surface later
+// as a nil lookup or a silently-skipped edge in whatever consumes the
+// graph next. A duplicate ID gets the same treatment: silently keeping
+// the last one seen (what a naive map[NodeID]Node build would do) would
+// make one of the two entries disappear from the graph with no
+// indication which, or that anything was lost at all.
 func (g Graph) Validate() error {
 	ids := make(map[NodeID]bool, len(g.Nodes))
 	for _, n := range g.Nodes {
@@ -58,6 +60,16 @@ func (g Graph) Validate() error {
 		if !ids[e.To] {
 			return fmt.Errorf("ir: edge %s->%s: to-node %q is not in the graph", e.From, e.To, e.To)
 		}
+	}
+	attestationIDs := make(map[AttestationID]bool, len(g.Attestations))
+	for _, a := range g.Attestations {
+		if err := a.Validate(); err != nil {
+			return err
+		}
+		if attestationIDs[a.ID] {
+			return fmt.Errorf("ir: duplicate attestation ID %q", a.ID)
+		}
+		attestationIDs[a.ID] = true
 	}
 	return nil
 }
@@ -97,11 +109,22 @@ func WriteEdgesJSONL(w io.Writer, edges []Edge) error {
 // WriteEdgesJSONL.
 func ReadEdgesJSONL(r io.Reader) ([]Edge, error) { return readJSONL[Edge](r) }
 
+// WriteAttestationsJSONL writes attestations to w as JSON Lines, sorted
+// by ID, so the output is byte-identical for the same set of
+// attestations regardless of build order (FR-5.3).
+func WriteAttestationsJSONL(w io.Writer, attestations []Attestation) error {
+	return writeJSONL(w, attestations, func(a, b Attestation) bool { return a.ID < b.ID })
+}
+
+// ReadAttestationsJSONL reads a JSON Lines stream of attestations
+// written by WriteAttestationsJSONL.
+func ReadAttestationsJSONL(r io.Reader) ([]Attestation, error) { return readJSONL[Attestation](r) }
+
 // writeJSONL sorts items by less and writes them to w as JSON Lines, one
-// compact, HTML-escape-free object per line. Node and Edge are the only
-// two instantiations today, but the shape (encode, sort, one item per
-// line) is the same for either, so it's written once here rather than
-// twice.
+// compact, HTML-escape-free object per line. Node, Edge, and Attestation
+// are the only instantiations today, but the shape (encode, sort, one
+// item per line) is the same for all three, so it's written once here
+// rather than three times.
 //
 // less alone is not always a total order: two Edges can share the same
 // (From, To, Relationship) - e.g. one collector Declares a relationship

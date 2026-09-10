@@ -23,6 +23,17 @@ type NodeID string
 // front-end sources and isn't defined by this skeleton - that's FR-2/
 // FR-3 collector work. Kind is a free-form label for what sort of fact
 // this is; Attributes is its collected data as a flat string map.
+//
+// Attributes must hold the measurement, never a verdict computed from it
+// (FR-5.9): log retention is stored as "retention_days": "90", never as
+// "meets_retention_requirement": "true". Different frameworks assert
+// different minimums against the same measurement, and a framework's
+// minimum is exactly the kind of framework-specific predicate FR-5.6
+// forbids in this package - baking a pass/fail verdict into a node would
+// smuggle that predicate in one field at a time. This package cannot
+// enforce that mechanically (Attributes is a free-form string map, by
+// design - see above), so it is a discipline collectors and this
+// package's own tests must hold, not a runtime check.
 type Node struct {
 	ID            NodeID        `json:"id"`
 	ControlFamily ControlFamily `json:"control_family"`
