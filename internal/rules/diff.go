@@ -83,57 +83,25 @@ func (d Diff) filter(kind ChangeKind) []DiffEntry {
 func DiffDatasets(from, to *Dataset) (Diff, error) {
 	diff := Diff{FromVersion: from.Info.Version, ToVersion: to.Info.Version}
 
-	frdFrom, err := flattenFRD(from)
-	if err != nil {
-		return Diff{}, fmt.Errorf("rules: diff: from dataset: %w", err)
-	}
-	frdTo, err := flattenFRD(to)
-	if err != nil {
-		return Diff{}, fmt.Errorf("rules: diff: to dataset: %w", err)
-	}
-	frdEntries, err := diffRecords(SectionFRD, frdFrom, frdTo)
+	frdEntries, err := diffSection(SectionFRD, flattenFRD, from, to)
 	if err != nil {
 		return Diff{}, err
 	}
 	diff.Entries = append(diff.Entries, frdEntries...)
 
-	frrFrom, err := flattenFRR(from)
-	if err != nil {
-		return Diff{}, fmt.Errorf("rules: diff: from dataset: %w", err)
-	}
-	frrTo, err := flattenFRR(to)
-	if err != nil {
-		return Diff{}, fmt.Errorf("rules: diff: to dataset: %w", err)
-	}
-	frrEntries, err := diffRecords(SectionFRR, frrFrom, frrTo)
+	frrEntries, err := diffSection(SectionFRR, flattenFRR, from, to)
 	if err != nil {
 		return Diff{}, err
 	}
 	diff.Entries = append(diff.Entries, frrEntries...)
 
-	ksiFrom, err := flattenKSI(from)
-	if err != nil {
-		return Diff{}, fmt.Errorf("rules: diff: from dataset: %w", err)
-	}
-	ksiTo, err := flattenKSI(to)
-	if err != nil {
-		return Diff{}, fmt.Errorf("rules: diff: to dataset: %w", err)
-	}
-	ksiEntries, err := diffRecords(SectionKSI, ksiFrom, ksiTo)
+	ksiEntries, err := diffSection(SectionKSI, flattenKSI, from, to)
 	if err != nil {
 		return Diff{}, err
 	}
 	diff.Entries = append(diff.Entries, ksiEntries...)
 
-	ctlFrom, err := flattenCTL(from)
-	if err != nil {
-		return Diff{}, fmt.Errorf("rules: diff: from dataset: %w", err)
-	}
-	ctlTo, err := flattenCTL(to)
-	if err != nil {
-		return Diff{}, fmt.Errorf("rules: diff: to dataset: %w", err)
-	}
-	ctlEntries, err := diffRecords(SectionCTL, ctlFrom, ctlTo)
+	ctlEntries, err := diffSection(SectionCTL, flattenCTL, from, to)
 	if err != nil {
 		return Diff{}, err
 	}
@@ -147,6 +115,24 @@ func DiffDatasets(from, to *Dataset) (Diff, error) {
 		return a.ID < b.ID
 	})
 	return diff, nil
+}
+
+// diffSection flattens from and to with flatten and diffs the two
+// resulting ID-keyed maps under section. DiffDatasets repeated this exact
+// shape - flatten from, flatten to, wrap each error with which side it
+// came from, diff, append - once per section (FRD, FRR, KSI, CTL); the
+// only thing that ever varied was flatten and section, which is exactly
+// what generics are for here.
+func diffSection[T any](section Section, flatten func(*Dataset) (map[string]T, error), from, to *Dataset) ([]DiffEntry, error) {
+	f, err := flatten(from)
+	if err != nil {
+		return nil, fmt.Errorf("rules: diff: from dataset: %w", err)
+	}
+	t, err := flatten(to)
+	if err != nil {
+		return nil, fmt.Errorf("rules: diff: to dataset: %w", err)
+	}
+	return diffRecords(section, f, t)
 }
 
 // diffRecords compares two ID-keyed maps of the same record type and
@@ -201,19 +187,46 @@ func insertUnique[T any](m map[string]T, id string, v T, kind string) error {
 	return nil
 }
 
+// idValue pairs a record with the ID flattenUnique should key it by -
+// the intermediate form each flatten* function collects into before
+// calling flattenUnique, since each has its own nested nesting shape
+// (buckets, documents, themes, families) to walk to find its IDs.
+type idValue[T any] struct {
+	id  string
+	val T
+}
+
+// flattenUnique builds an ID-keyed map from pairs, in ascending ID order,
+// failing via insertUnique on the first collision found in that order.
+// Sorting before inserting - rather than inserting in whatever order the
+// caller's own nested source maps happened to iterate in, which Go
+// randomizes per run - makes which duplicate ID gets named in the
+// resulting error deterministic across runs, not just whether an error
+// occurs at all: two datasets with the same set of duplicate IDs must
+// report the same offending ID every time, not whichever one a given
+// run's map iteration happened to reach first.
+func flattenUnique[T any](kind string, pairs []idValue[T]) (map[string]T, error) {
+	sort.Slice(pairs, func(i, j int) bool { return pairs[i].id < pairs[j].id })
+	out := make(map[string]T, len(pairs))
+	for _, p := range pairs {
+		if err := insertUnique(out, p.id, p.val, kind); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
 // flattenFRD flattens FRD definitions across all three applicability
 // buckets (all/20x/rev5) into one ID-keyed map. A given FRD-XXX is
 // expected to live in exactly one bucket.
 func flattenFRD(ds *Dataset) (map[string]FRDDefinition, error) {
-	out := make(map[string]FRDDefinition)
+	var pairs []idValue[FRDDefinition]
 	for _, bucket := range ds.FRD.Data.Buckets() {
 		for id, def := range bucket {
-			if err := insertUnique(out, id, def, "FRD definition"); err != nil {
-				return nil, err
-			}
+			pairs = append(pairs, idValue[FRDDefinition]{id, def})
 		}
 	}
-	return out, nil
+	return flattenUnique("FRD definition", pairs)
 }
 
 // flattenFRR flattens FRR rules across every document, applicability
@@ -224,19 +237,17 @@ func flattenFRD(ds *Dataset) (map[string]FRDDefinition, error) {
 // fact about today's vendored dataset, not something the schema
 // enforces, hence insertUnique rather than a bare map write.
 func flattenFRR(ds *Dataset) (map[string]FRRRequirement, error) {
-	out := make(map[string]FRRRequirement)
+	var pairs []idValue[FRRRequirement]
 	for _, doc := range ds.FRR {
 		for _, container := range doc.Data.Buckets() {
 			for _, rules := range container {
 				for id, rule := range rules {
-					if err := insertUnique(out, id, rule, "FRR rule"); err != nil {
-						return nil, err
-					}
+					pairs = append(pairs, idValue[FRRRequirement]{id, rule})
 				}
 			}
 		}
 	}
-	return out, nil
+	return flattenUnique("FRR rule", pairs)
 }
 
 // flattenKSI flattens KSI indicators across every theme into one
@@ -244,15 +255,13 @@ func flattenFRR(ds *Dataset) (map[string]FRRRequirement, error) {
 // the whole dataset by construction, though - as with FRR above - that's
 // not schema-enforced, hence insertUnique.
 func flattenKSI(ds *Dataset) (map[string]KSIIndicator, error) {
-	out := make(map[string]KSIIndicator)
+	var pairs []idValue[KSIIndicator]
 	for _, theme := range ds.KSI {
 		for id, ind := range theme.Indicators {
-			if err := insertUnique(out, id, ind, "KSI indicator"); err != nil {
-				return nil, err
-			}
+			pairs = append(pairs, idValue[KSIIndicator]{id, ind})
 		}
 	}
-	return out, nil
+	return flattenUnique("KSI indicator", pairs)
 }
 
 // flattenCTL flattens CTL control entries across every family into one
@@ -263,13 +272,11 @@ func flattenKSI(ds *Dataset) (map[string]KSIIndicator, error) {
 // principle both contain a key that parses to the same ControlID -
 // hence insertUnique rather than a bare map write here too.
 func flattenCTL(ds *Dataset) (map[string]ControlEntry, error) {
-	out := make(map[string]ControlEntry)
+	var pairs []idValue[ControlEntry]
 	for _, fam := range ds.CTL {
 		for id, entry := range fam {
-			if err := insertUnique(out, id.CTLKey(), entry, "CTL control"); err != nil {
-				return nil, err
-			}
+			pairs = append(pairs, idValue[ControlEntry]{id.CTLKey(), entry})
 		}
 	}
-	return out, nil
+	return flattenUnique("CTL control", pairs)
 }

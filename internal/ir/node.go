@@ -61,5 +61,13 @@ func (n Node) Validate() error {
 	if err := n.Provenance.Validate(); err != nil {
 		return fmt.Errorf("ir: node %s: %w", n.ID, err)
 	}
+	for i, c := range n.Controls {
+		if err := c.Validate(); err != nil {
+			return fmt.Errorf("ir: node %s: control %d: %w", n.ID, i, err)
+		}
+		if c.Family != n.ControlFamily {
+			return fmt.Errorf("ir: node %s: control %d has family %q, want %q (must match control_family)", n.ID, i, c.Family, n.ControlFamily)
+		}
+	}
 	return nil
 }

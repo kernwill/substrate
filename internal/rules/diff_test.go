@@ -84,6 +84,44 @@ func TestDiffDatasetsFailsLoudlyOnDuplicateID(t *testing.T) {
 	}
 }
 
+// TestFlattenFRDDuplicateErrorIsDeterministic is a regression test for a
+// gap the code review's ultra pass found: flattenFRD (and its siblings)
+// inserted into their output map in whatever order Go's randomized map
+// iteration happened to visit the source buckets, so when more than one
+// duplicate ID existed simultaneously, insertUnique's error named
+// whichever one iteration reached first - non-deterministic across runs,
+// even though the pass/fail outcome itself was always deterministic
+// (always an error). flattenUnique now sorts by ID before inserting, so
+// the reported ID is always the lexicographically smallest duplicate.
+// This constructs three simultaneous duplicates and runs flattenFRD many
+// times, checking every run reports the same one ("FRD-AAA", the
+// smallest).
+func TestFlattenFRDDuplicateErrorIsDeterministic(t *testing.T) {
+	def := FRDDefinition{Term: "x", Definition: "y"}
+	all := map[string]FRDDefinition{
+		"FRD-AAA": def,
+		"FRD-BBB": def,
+		"FRD-CCC": def,
+		"FRD-DDD": def,
+	}
+	dup := map[string]FRDDefinition{
+		"FRD-AAA": def,
+		"FRD-BBB": def,
+		"FRD-CCC": def,
+	}
+	ds := &Dataset{FRD: FRDDocument{Data: FRDDataContainer{All: all, TwentyX: dup}}}
+
+	for i := 0; i < 50; i++ {
+		_, err := flattenFRD(ds)
+		if err == nil {
+			t.Fatalf("run %d: flattenFRD succeeded, want error for duplicated IDs", i)
+		}
+		if got, want := err.Error(), `rules: duplicate FRD definition ID "FRD-AAA" found in more than one location`; got != want {
+			t.Errorf("run %d: error = %q, want %q (non-deterministic duplicate reporting)", i, got, want)
+		}
+	}
+}
+
 func TestDiffDatasetsIdentical(t *testing.T) {
 	ds := loadVendoredDataset(t)
 	diff, err := DiffDatasets(ds, ds)

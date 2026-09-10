@@ -36,12 +36,26 @@ func (d Dataset) MarshalJSON() ([]byte, error) {
 
 // Control looks up a single control's guidance by canonical ID.
 func (d *Dataset) Control(id ControlID) (ControlEntry, bool) {
-	fam, ok := d.CTL[id.Family]
-	if !ok {
-		return ControlEntry{}, false
+	if fam, ok := d.CTL[id.Family]; ok {
+		if entry, ok := fam[id]; ok {
+			return entry, true
+		}
 	}
-	entry, ok := fam[id]
-	return entry, ok
+	// The schema's nested control-key pattern doesn't actually require a
+	// key's own two-letter prefix to match the family object it's nested
+	// under (see flattenCTL's comment in diff.go, which makes the same
+	// point and doesn't assume it either) - today's vendored dataset has
+	// no such mismatch (verified empirically while triaging this finding),
+	// but if one ever appeared, checking only d.CTL[id.Family] would
+	// silently miss an entry that's genuinely present in the dataset.
+	// Fall back to a full scan rather than assume the common-case nesting
+	// always holds.
+	for _, fam := range d.CTL {
+		if entry, ok := fam[id]; ok {
+			return entry, true
+		}
+	}
+	return ControlEntry{}, false
 }
 
 // Load validates raw against the vendored FedRAMP Consolidated Rules JSON

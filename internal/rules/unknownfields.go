@@ -138,6 +138,18 @@ func jsonFieldNames(v any) []string {
 	names := make([]string, 0, rt.NumField())
 	for i := 0; i < rt.NumField(); i++ {
 		f := rt.Field(i)
+		if f.PkgPath != "" {
+			// Unexported (PkgPath != "" is Go's own is-this-exported
+			// check). encoding/json never reads or writes unexported
+			// fields at all, so one can never correspond to a real JSON
+			// key - counting its bare name as "known" here would be
+			// wrong today only in the wrong direction (it can only ever
+			// falsely mark a genuine JSON key as consumed), and no alias
+			// struct in this package currently has an unexported field,
+			// but the check should hold regardless of what any future one
+			// looks like.
+			continue
+		}
 		tag, ok := f.Tag.Lookup("json")
 		if !ok {
 			names = append(names, f.Name)

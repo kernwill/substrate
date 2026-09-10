@@ -122,9 +122,20 @@ func (c ControlID) FedRAMPProse() string {
 // String returns the OSCAL form, the notation most FRR/KSI cross-references use.
 func (c ControlID) String() string { return c.OSCAL() }
 
-// MarshalText renders c in OSCAL form, so ControlID can be used as a map
-// key or plain JSON string value.
-func (c ControlID) MarshalText() ([]byte, error) { return []byte(c.OSCAL()), nil }
+// MarshalText renders c in CTL-key form. This is what makes ControlID
+// usable as a map key or plain JSON string value, and CTL-key form is
+// the one that actually matters there: ControlID's only real use as a
+// map key today is CTL's own map[ControlID]ControlEntry (ctl.go), which
+// is decoded from CTL-key strings like "AC-06-01" in the first place -
+// UnmarshalText round-trips CTL-key form back to the same ControlID
+// (ParseControlID tries ParseCTLKey first), so encoding it back out the
+// same way keeps a Dataset's own re-marshal lossless in the one form
+// that's ever exercised. (An earlier version of this method emitted
+// OSCAL form here instead, which silently reformatted every CTL key -
+// e.g. "SA-09-02" into "sa-9.2" - the moment anything re-marshaled a
+// loaded Dataset, since nothing about the value remembers which of the
+// three notations it was originally parsed from.)
+func (c ControlID) MarshalText() ([]byte, error) { return []byte(c.CTLKey()), nil }
 
 // UnmarshalText parses text using whichever known notation matches, so
 // ControlID can be decoded transparently from any of the dataset's three

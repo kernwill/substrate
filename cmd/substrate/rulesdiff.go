@@ -18,6 +18,24 @@ const rulesDiffUsage = "usage: substrate rules diff [--format text|json] <fileA>
 // the single vendored, checksummed one - so both arguments are paths to
 // dataset JSON files, not version identifiers.
 //
+// runRulesDiff always returns 0 when it successfully computes and prints a
+// diff, regardless of how many entries were added, removed, or modified -
+// this is deliberate, not an oversight of main.go's documented "0 pass, 1
+// rule regression (CI gate failure), 2 usage or internal error" contract.
+// That contract is about substrate gate, the actual CI gate command (not
+// yet implemented): it compares a customer's compiled IR against a
+// baseline and must fail the build when a *customer's* control regresses.
+// rules diff compares two FedRAMP rule dataset files - e.g. this year's
+// vendored ruleset against last year's - which is inspection tooling in
+// the same family as rules show, analogous to `git diff` reporting that
+// two refs differ. A dataset having different rules than another dataset
+// is not a rule regression in anyone's compliance posture; treating any
+// non-empty diff as exit 1 would make this command fail on virtually
+// every real invocation (any two non-identical dataset versions) and
+// would conflate "the reference ruleset changed" with "a customer stopped
+// meeting a control," which is exactly the confusion Declared-vs-Observed
+// exists to prevent for compliance findings generally.
+//
 // Arguments are parsed by hand rather than via the stdlib flag package:
 // flag.FlagSet.Parse stops at the first non-flag argument, so
 // "diff a.json b.json --format json" (flag after the positionals, a

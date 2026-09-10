@@ -17,6 +17,36 @@ func TestMarshalJSONDoesNotHTMLEscape(t *testing.T) {
 	}
 }
 
+// structWithUnexportedField is a test-only fixture for
+// TestJSONFieldNamesSkipsUnexportedFields: an unexported field with no
+// json tag, alongside an exported tagged one.
+type structWithUnexportedField struct {
+	Known  string `json:"known"`
+	secret string // deliberately unexported and untagged
+}
+
+// TestJSONFieldNamesSkipsUnexportedFields is a regression test for a gap
+// the code review's ultra pass found: jsonFieldNames added a field's bare
+// Go name to the "known fields" list whenever it had no json tag, without
+// checking whether the field was actually exported (reflect.StructField's
+// PkgPath == "" is the standard test). encoding/json itself never reads
+// or writes unexported fields, so counting "secret" as a known JSON key
+// here would be wrong: decodeWithExtra would then delete a
+// same-named "secret" key from the raw object even though the struct's
+// real decode never consumed it, silently losing a genuine unknown field
+// with that name instead of preserving it in Extra.
+func TestJSONFieldNamesSkipsUnexportedFields(t *testing.T) {
+	names := jsonFieldNames(&structWithUnexportedField{})
+	for _, n := range names {
+		if n == "secret" {
+			t.Fatalf("jsonFieldNames = %v, must not include the unexported field's name", names)
+		}
+	}
+	if len(names) != 1 || names[0] != "known" {
+		t.Errorf("jsonFieldNames = %v, want [\"known\"]", names)
+	}
+}
+
 // TestMarshalJSONAloneIsNotEnough backs the other half of marshalJSON's
 // doc comment: fixing the per-type marshaler alone does not make a
 // plain top-level json.Marshal call escape-free, because Go's json

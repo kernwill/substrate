@@ -4,6 +4,9 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/dlclark/regexp2"
 )
 
 const vendoredDatasetPath = "data/fedramp-consolidated-rules.json"
@@ -95,6 +98,29 @@ func TestValidateSchemaRejectsMalformedControlID(t *testing.T) {
 	if err == nil {
 		t.Fatal("ValidateSchema(dataset with malformed control ID) succeeded, want error")
 	}
+}
+
+// TestEcmaRegexpMatchStringPanicsOnEngineError is a regression test for a
+// gap the code review's ultra pass found: ecmaRegexp.MatchString collapsed
+// any regexp2 engine error into a plain "no match" (err == nil && matched),
+// which jsonschema.Regexp's interface (MatchString(string) bool - no error
+// return) can't distinguish from a genuine non-match. That silently turns
+// an engine fault into a false schema validation result. This forces a
+// real regexp2 error (a match timeout against a catastrophic-backtracking
+// pattern) and checks MatchString panics instead of returning false.
+func TestEcmaRegexpMatchStringPanicsOnEngineError(t *testing.T) {
+	re, err := regexp2.Compile(`^(a+)+$`, regexp2.ECMAScript)
+	if err != nil {
+		t.Fatalf("regexp2.Compile: %v", err)
+	}
+	re.MatchTimeout = time.Nanosecond
+
+	defer func() {
+		if recover() == nil {
+			t.Error("MatchString did not panic on a regexp2 engine error, want panic")
+		}
+	}()
+	ecmaRegexp{re}.MatchString(strings.Repeat("a", 40) + "!")
 }
 
 // asSchemaError is errors.As without importing errors in every call site;

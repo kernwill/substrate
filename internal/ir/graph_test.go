@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+
+	"github.com/kernwill/substrate/internal/provenance"
 )
 
 func TestWriteReadNodesJSONLRoundTrip(t *testing.T) {
@@ -158,6 +160,37 @@ func TestWriteEdgesJSONLIsByteReproducible(t *testing.T) {
 	}
 }
 
+// TestWriteEdgesJSONLIsByteReproducibleForTiedSortKey is a regression test
+// for a bug the code review's ultra pass found: WriteEdgesJSONL sorts by
+// (From, To, Relationship) only, so two Edges representing the same
+// relationship - one Declared by a collector, one independently Observed
+// via a live API call - tie on every field the sort key looks at while
+// differing in Provenance. sort.Slice gives no ordering guarantee for such
+// ties, so the two Edges could serialize in either relative order
+// depending on the input slice's order, breaking this package's own
+// byte-identical-regardless-of-build-order guarantee.
+func TestWriteEdgesJSONLIsByteReproducibleForTiedSortKey(t *testing.T) {
+	declared := validEdge("n1", "n2")
+	observed := validEdge("n1", "n2")
+	observed.Provenance.Basis = provenance.Observed
+	observed.Provenance.Confidence = provenance.Heuristic
+	observed.Provenance.SourceType = "aws-api"
+
+	a := []Edge{declared, observed}
+	b := []Edge{observed, declared}
+
+	var bufA, bufB bytes.Buffer
+	if err := WriteEdgesJSONL(&bufA, a); err != nil {
+		t.Fatalf("WriteEdgesJSONL(a): %v", err)
+	}
+	if err := WriteEdgesJSONL(&bufB, b); err != nil {
+		t.Fatalf("WriteEdgesJSONL(b): %v", err)
+	}
+	if bufA.String() != bufB.String() {
+		t.Errorf("output differs by input order for tied sort key:\n--- a ---\n%s\n--- b ---\n%s", bufA.String(), bufB.String())
+	}
+}
+
 func TestGraphValidate(t *testing.T) {
 	g := Graph{
 		Nodes: []Node{validNode("n1"), validNode("n2")},
@@ -172,6 +205,23 @@ func TestGraphValidate(t *testing.T) {
 	bad.Nodes[0].Kind = ""
 	if err := bad.Validate(); err == nil {
 		t.Error("Validate() = nil, want error propagated from an invalid node")
+	}
+}
+
+// TestGraphValidateRejectsDuplicateNodeID is a regression test for a gap
+// the code review's ultra pass found: Validate built its ids set with a
+// bare map write (ids[n.ID] = true) and never checked whether the key was
+// already present, so two distinct Nodes sharing the same ID passed
+// Validate cleanly - and any consumer building a map[NodeID]Node from
+// g.Nodes would silently keep only the last one, dropping the other with
+// no error anywhere.
+func TestGraphValidateRejectsDuplicateNodeID(t *testing.T) {
+	n1 := validNode("n1")
+	n2 := validNode("n1")
+	n2.Kind = "different_kind"
+	g := Graph{Nodes: []Node{n1, n2}}
+	if err := g.Validate(); err == nil {
+		t.Error("Validate() = nil, want error for duplicate node ID")
 	}
 }
 

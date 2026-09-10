@@ -123,6 +123,9 @@ func (r Record) Validate() error {
 	if r.Timestamp.IsZero() {
 		return fmt.Errorf("provenance: timestamp is required")
 	}
+	if r.Timestamp.Location() != time.UTC {
+		return fmt.Errorf("provenance: timestamp must be UTC, got location %q - a non-UTC location (even one at the same offset, e.g. \"+00:00\" instead of \"Z\") serializes differently and breaks byte-identical output across collectors in different time zones", r.Timestamp.Location())
+	}
 	if r.CollectorVersion == "" {
 		return fmt.Errorf("provenance: collector_version is required")
 	}

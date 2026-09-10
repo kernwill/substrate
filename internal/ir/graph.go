@@ -2,6 +2,7 @@ package ir
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -27,16 +28,23 @@ type Graph struct {
 }
 
 // Validate checks every node and edge in g for internal well-formedness,
-// and that every edge's From and To reference a node actually present in
-// g.Nodes. A dangling edge - one whose endpoint was dropped or never
-// added - must fail here, loudly and cheaply, rather than surface later
-// as a nil lookup or a silently-skipped edge in whatever consumes the
-// graph next.
+// that no two nodes share an ID, and that every edge's From and To
+// reference a node actually present in g.Nodes. A dangling edge - one
+// whose endpoint was dropped or never added - must fail here, loudly and
+// cheaply, rather than surface later as a nil lookup or a silently-skipped
+// edge in whatever consumes the graph next. A duplicate node ID gets the
+// same treatment: silently keeping the last one seen (what a naive
+// map[NodeID]Node build would do) would make one of the two nodes
+// disappear from the graph with no indication which, or that anything was
+// lost at all.
 func (g Graph) Validate() error {
 	ids := make(map[NodeID]bool, len(g.Nodes))
 	for _, n := range g.Nodes {
 		if err := n.Validate(); err != nil {
 			return err
+		}
+		if ids[n.ID] {
+			return fmt.Errorf("ir: duplicate node ID %q", n.ID)
 		}
 		ids[n.ID] = true
 	}
@@ -89,21 +97,48 @@ func WriteEdgesJSONL(w io.Writer, edges []Edge) error {
 // WriteEdgesJSONL.
 func ReadEdgesJSONL(r io.Reader) ([]Edge, error) { return readJSONL[Edge](r) }
 
-// writeJSONL sorts a copy of items by less and writes them to w as JSON
-// Lines, one compact, HTML-escape-free object per line. Node and Edge
-// are the only two instantiations today, but the shape (sort a copy,
-// encode with escaping disabled, one item per line) is the same for
-// either, so it's written once here rather than twice.
+// writeJSONL sorts items by less and writes them to w as JSON Lines, one
+// compact, HTML-escape-free object per line. Node and Edge are the only
+// two instantiations today, but the shape (encode, sort, one item per
+// line) is the same for either, so it's written once here rather than
+// twice.
+//
+// less alone is not always a total order: two Edges can share the same
+// (From, To, Relationship) - e.g. one collector Declares a relationship
+// that a live API call independently Observes - while differing in
+// Provenance or SchemaVersion, fields less deliberately excludes. Encoding
+// every item up front and breaking less's ties by comparing the encoded
+// bytes gives a total order derived entirely from each item's own content,
+// so the sorted (and therefore written) order never depends on the slice's
+// incoming order - the byte-identical-regardless-of-build-order guarantee
+// this package documents.
 func writeJSONL[T any](w io.Writer, items []T, less func(a, b T) bool) error {
-	sorted := make([]T, len(items))
-	copy(sorted, items)
-	sort.Slice(sorted, func(i, j int) bool { return less(sorted[i], sorted[j]) })
-
-	enc := json.NewEncoder(w)
-	enc.SetEscapeHTML(false)
-	for i, item := range sorted {
-		if err := enc.Encode(item); err != nil {
-			return fmt.Errorf("ir: write item %d: %w", i, err)
+	type encodedItem struct {
+		item T
+		line []byte
+	}
+	enc := make([]encodedItem, len(items))
+	for i, item := range items {
+		var buf bytes.Buffer
+		e := json.NewEncoder(&buf)
+		e.SetEscapeHTML(false)
+		if err := e.Encode(item); err != nil {
+			return fmt.Errorf("ir: encode item %d: %w", i, err)
+		}
+		enc[i] = encodedItem{item: item, line: buf.Bytes()}
+	}
+	sort.Slice(enc, func(i, j int) bool {
+		if less(enc[i].item, enc[j].item) {
+			return true
+		}
+		if less(enc[j].item, enc[i].item) {
+			return false
+		}
+		return bytes.Compare(enc[i].line, enc[j].line) < 0
+	})
+	for _, e := range enc {
+		if _, err := w.Write(e.line); err != nil {
+			return fmt.Errorf("ir: write item: %w", err)
 		}
 	}
 	return nil

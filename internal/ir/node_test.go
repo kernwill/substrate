@@ -77,6 +77,32 @@ func TestNodeValidatePropagatesInvalidProvenance(t *testing.T) {
 	}
 }
 
+// TestNodeValidateRejectsControlFamilyMismatch is a regression test for a
+// gap the code review's ultra pass found: Validate never checked that
+// each entry in Controls actually belongs to n.ControlFamily, so a Node
+// claiming ControlFamily "SC" could carry a Control for family "AC" with
+// no error - silently breaking the invariant a consumer would reasonably
+// assume (that Controls is always a refinement of ControlFamily, never a
+// contradiction of it).
+func TestNodeValidateRejectsControlFamilyMismatch(t *testing.T) {
+	n := validNode("n1")
+	n.Controls = []Control{{Family: "AC", Base: 6}}
+	if err := n.Validate(); err == nil {
+		t.Error("Validate() = nil, want error for a control whose family does not match control_family")
+	}
+}
+
+// TestNodeValidatePropagatesInvalidControl is a regression test for the
+// same gap: Validate never called Control.Validate on its Controls
+// entries, so a malformed Control (e.g. Base 0) passed silently.
+func TestNodeValidatePropagatesInvalidControl(t *testing.T) {
+	n := validNode("n1")
+	n.Controls = []Control{{Family: "SC", Base: 0}}
+	if err := n.Validate(); err == nil {
+		t.Error("Validate() = nil, want error propagated from an invalid Control")
+	}
+}
+
 func TestNodeControlsOmittedWhenAbsent(t *testing.T) {
 	n := validNode("n1")
 	n.Controls = nil

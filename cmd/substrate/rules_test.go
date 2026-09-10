@@ -124,6 +124,29 @@ func TestRulesDiffIdenticalFileProducesNoEntries(t *testing.T) {
 	}
 }
 
+// TestRulesDiffExitsZeroOnNonEmptyDiff locks in a deliberate design
+// decision the code review's ultra pass flagged for reconsideration:
+// runRulesDiff returns 0 even when the diff has added, removed, and
+// modified entries, rather than treating a non-empty diff as the "1 rule
+// regression" exit code main.go documents for the CI gate. That contract
+// is about substrate gate comparing a customer's compiled IR against a
+// baseline, not about two reference rule datasets differing from each
+// other - see runRulesDiff's doc comment for the full reasoning. This
+// test exercises testdata/diff/a.json vs b.json, which by construction
+// (see TestGoldenRulesDiff) has a non-empty diff in every section.
+func TestRulesDiffExitsZeroOnNonEmptyDiff(t *testing.T) {
+	fileA := filepath.Join("testdata", "diff", "a.json")
+	fileB := filepath.Join("testdata", "diff", "b.json")
+	var stdout, stderr bytes.Buffer
+	code := runRulesDiff([]string{fileA, fileB}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0 even though the diff is non-empty; stderr = %s", code, stderr.String())
+	}
+	if bytes.Contains(stdout.Bytes(), []byte("0 added, 0 removed, 0 modified")) {
+		t.Fatal("test setup: expected a non-empty diff between a.json and b.json")
+	}
+}
+
 func TestRulesDiffRejectsWrongArgCount(t *testing.T) {
 	fileA := filepath.Join("testdata", "diff", "a.json")
 	var stdout, stderr bytes.Buffer

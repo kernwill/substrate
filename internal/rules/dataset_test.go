@@ -273,6 +273,54 @@ func normalizeJSON(t *testing.T, s string) string {
 // TestDatasetRoundTripPreservesUnknownTopLevelKey exercises the same
 // preservation property at the Dataset level, since a future dataset
 // version could add a sixth top-level section alongside info/FRD/FRR/KSI/CTL.
+func TestDatasetControlFindsEntryUnderMatchingFamily(t *testing.T) {
+	ds := loadVendoredDataset(t)
+	id := ControlID{Family: "AC", Base: 6, Enhancement: 1}
+	entry, ok := ds.Control(id)
+	if !ok {
+		t.Fatalf("Control(%+v) = not found, want found", id)
+	}
+	if len(entry.Guidance) == 0 && len(entry.Parameters) == 0 {
+		t.Errorf("Control(%+v) returned an empty entry, want real guidance/parameters", id)
+	}
+}
+
+func TestDatasetControlReportsMissingID(t *testing.T) {
+	ds := loadVendoredDataset(t)
+	if _, ok := ds.Control(ControlID{Family: "ZZ", Base: 99}); ok {
+		t.Error("Control() = found, want not found for a control ID absent from the dataset")
+	}
+}
+
+// TestDatasetControlFallsBackAcrossMismatchedFamilyNesting is a regression
+// test for a gap the code review's ultra pass found: Control looked up
+// only d.CTL[id.Family][id], trusting that every entry lives under the
+// family bucket matching its own ControlID.Family. flattenCTL (diff.go)
+// explicitly does not make that assumption, because the schema's nested
+// control-key pattern doesn't actually require the two to match. Today's
+// vendored dataset happens to always nest consistently (verified
+// empirically against rules.Default() while triaging this finding), but
+// Control should not silently miss an entry the dataset genuinely
+// contains just because it's nested under an unexpected family key.
+func TestDatasetControlFallsBackAcrossMismatchedFamilyNesting(t *testing.T) {
+	id := ControlID{Family: "AC", Base: 6, Enhancement: 1}
+	ds := &Dataset{
+		CTL: map[string]ControlFamily{
+			// Deliberately nested under "SA", not "AC", to simulate the
+			// mismatch the schema permits but the vendored data never
+			// exercises.
+			"SA": {id: ControlEntry{Guidance: []string{"test guidance"}}},
+		},
+	}
+	entry, ok := ds.Control(id)
+	if !ok {
+		t.Fatalf("Control(%+v) = not found, want found via fallback scan", id)
+	}
+	if len(entry.Guidance) != 1 || entry.Guidance[0] != "test guidance" {
+		t.Errorf("Control(%+v) = %+v, want the mismatched-nesting entry", id, entry)
+	}
+}
+
 func TestDatasetRoundTripPreservesUnknownTopLevelKey(t *testing.T) {
 	raw := readVendoredDataset(t)
 	var ds Dataset
@@ -297,4 +345,50 @@ func TestDatasetRoundTripPreservesUnknownTopLevelKey(t *testing.T) {
 			t.Errorf("re-encoded dataset lost top-level key %q", key)
 		}
 	}
+}
+
+// TestDatasetRoundTripPreservesCTLKeyForm is a Dataset-level regression test
+// for the same bug TestControlIDMarshalTextRoundTripsThroughUnmarshalText
+// covers at the ControlID level: MarshalText previously always emitted OSCAL
+// form, so re-marshaling the real vendored Dataset silently rewrote every
+// CTL section key (e.g. "SA-09-02" became "sa-9.2"). This exercises the
+// actual path that surfaced the bug - marshaling a fully loaded Dataset -
+// rather than just the isolated ControlID type.
+func TestDatasetRoundTripPreservesCTLKeyForm(t *testing.T) {
+	raw := readVendoredDataset(t)
+	var ds Dataset
+	if err := json.Unmarshal(raw, &ds); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
+	out, err := json.Marshal(ds)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
+	var before, after struct {
+		CTL map[string]map[string]json.RawMessage `json:"CTL"`
+	}
+	if err := json.Unmarshal(raw, &before); err != nil {
+		t.Fatalf("Unmarshal(raw): %v", err)
+	}
+	if err := json.Unmarshal(out, &after); err != nil {
+		t.Fatalf("Unmarshal(re-encoded): %v", err)
+	}
+
+	for family, entries := range before.CTL {
+		for key := range entries {
+			if _, ok := after.CTL[family][key]; !ok {
+				t.Errorf("re-encoded dataset lost or renamed CTL key %q under family %q (got keys %v)", key, family, rawKeys(after.CTL[family]))
+			}
+		}
+	}
+}
+
+func rawKeys(m map[string]json.RawMessage) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }

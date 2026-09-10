@@ -35,6 +35,23 @@ type Control struct {
 // rather than a base control.
 func (c Control) HasEnhancement() bool { return c.Enhancement > 0 }
 
+// Validate checks that c is well-formed: Family is set, Base is a
+// positive control number, and Enhancement (when present) is positive
+// too. It does not check c against any actual control catalog - only
+// that the numbers are the kind a real 800-53 control ID could have.
+func (c Control) Validate() error {
+	if c.Family == "" {
+		return fmt.Errorf("ir: control: family is required")
+	}
+	if c.Base <= 0 {
+		return fmt.Errorf("ir: control %s: base %d must be positive", c.Family, c.Base)
+	}
+	if c.Enhancement < 0 {
+		return fmt.Errorf("ir: control %s-%d: enhancement %d must not be negative", c.Family, c.Base, c.Enhancement)
+	}
+	return nil
+}
+
 // String renders c in OSCAL's dotted-decimal notation, e.g. "ac-6.1".
 func (c Control) String() string {
 	family := strings.ToLower(string(c.Family))

@@ -57,7 +57,23 @@ type ecmaRegexp struct{ re *regexp2.Regexp }
 
 func (r ecmaRegexp) MatchString(s string) bool {
 	matched, err := r.re.MatchString(s)
-	return err == nil && matched
+	if err != nil {
+		// jsonschema.Regexp's interface has no error return - see its
+		// definition in santhosh-tekuri/jsonschema/v6 - so there is no way
+		// to propagate this as a real error through schema validation.
+		// regexp2 only errors here for things like an exceeded match
+		// timeout, which this package never configures, so in practice
+		// this should be unreachable. Silently treating an engine error as
+		// "does not match" would be exactly the kind of collapse CLAUDE.md
+		// forbids ("never collapse undetermined into either satisfied or
+		// not_satisfied") applied to schema validation itself: it could
+		// make a well-formed dataset fail validation, or a malformed one
+		// pass, with no indication anything went wrong. Panic instead,
+		// consistent with this file's own init() failing loudly on schema
+		// construction problems it also considers "should never happen."
+		panic(fmt.Sprintf("rules: regexp2 match error for pattern %q: %v", r.re.String(), err))
+	}
+	return matched
 }
 
 func (r ecmaRegexp) String() string { return r.re.String() }

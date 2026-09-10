@@ -75,6 +75,29 @@ func TestRecordValidateRejectsZeroTimestamp(t *testing.T) {
 	}
 }
 
+// TestRecordValidateRejectsNonUTCTimestamp is a regression test for a gap
+// the code review's ultra pass found: Validate checked only that
+// Timestamp was non-zero, never that it was actually UTC, despite the
+// field's own doc comment claiming "Always UTC, so two collectors in
+// different time zones produce byte-identical output for the same
+// underlying instant." A timestamp fixed to a non-UTC location - even one
+// at the same offset, like a fixed +00:00 zone instead of Z - marshals to
+// a different string ("+00:00" instead of "Z"), which would silently
+// break that reproducibility guarantee.
+func TestRecordValidateRejectsNonUTCTimestamp(t *testing.T) {
+	r := validRecord()
+	r.Timestamp = r.Timestamp.In(time.FixedZone("", 0))
+	if err := r.Validate(); err == nil {
+		t.Error("Validate() = nil, want error for a timestamp not in time.UTC")
+	}
+
+	r2 := validRecord()
+	r2.Timestamp = r2.Timestamp.In(time.FixedZone("EST", -5*60*60))
+	if err := r2.Validate(); err == nil {
+		t.Error("Validate() = nil, want error for a timestamp in a non-UTC zone")
+	}
+}
+
 func TestRecordValidateRejectsMissingCollectorVersion(t *testing.T) {
 	r := validRecord()
 	r.CollectorVersion = ""

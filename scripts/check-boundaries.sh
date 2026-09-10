@@ -15,7 +15,13 @@ fail=0
 
 check() {
   local from="$1" to="$2" why="$3"
-  if grep -rn --include="*.go" "\"${MOD}/${to}" "${from}" 2>/dev/null | grep -v "_test.go"; then
+  # Deliberately includes _test.go files: a test-only import still leaks
+  # backend/frontend framework details into a package whose whole point is
+  # to be framework-agnostic (or collector-agnostic), and it still
+  # compiles and runs as part of `go test ./...`. Excluding test files here
+  # would blind-spot exactly the same violation the moment it's committed
+  # in a _test.go file instead of a non-test one.
+  if grep -rn --include="*.go" "\"${MOD}/${to}" "${from}" 2>/dev/null; then
     echo "BOUNDARY VIOLATION: ${from} imports ${to}"
     echo "  ${why}"
     fail=1

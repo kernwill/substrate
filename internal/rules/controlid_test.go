@@ -159,7 +159,10 @@ func TestControlIDTextMarshaling(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MarshalText() error: %v", err)
 	}
-	if got, want := string(text), "ac-6.1"; got != want {
+	// CTL-key form, not OSCAL: this is what makes a map[ControlID]T
+	// round-trip through JSON without silently reformatting its keys -
+	// see MarshalText's own doc comment.
+	if got, want := string(text), "AC-06-01"; got != want {
 		t.Fatalf("MarshalText() = %q, want %q", got, want)
 	}
 
@@ -169,6 +172,29 @@ func TestControlIDTextMarshaling(t *testing.T) {
 	}
 	if got != id {
 		t.Fatalf("UnmarshalText() = %+v, want %+v", got, id)
+	}
+}
+
+// TestControlIDMarshalTextRoundTripsThroughUnmarshalText is a direct
+// regression test for a bug the code review's ultra pass found: an
+// earlier version of MarshalText emitted OSCAL form ("ac-6.1")
+// regardless of which notation a ControlID was parsed from, so encoding
+// a value parsed from CTL-key form ("AC-06-01") and decoding it again
+// silently produced a *different* string representation even though the
+// underlying ControlID value was unchanged.
+func TestControlIDMarshalTextRoundTripsThroughUnmarshalText(t *testing.T) {
+	for _, in := range []string{"AC-06-01", "AC-20", "SA-09-02"} {
+		var id ControlID
+		if err := id.UnmarshalText([]byte(in)); err != nil {
+			t.Fatalf("UnmarshalText(%q) error: %v", in, err)
+		}
+		text, err := id.MarshalText()
+		if err != nil {
+			t.Fatalf("MarshalText(): %v", err)
+		}
+		if string(text) != in {
+			t.Errorf("UnmarshalText(%q) then MarshalText() = %q, want %q", in, text, in)
+		}
 	}
 }
 
