@@ -493,16 +493,18 @@ A vulnerability scanner (ingest only). A generic GRC platform with policies, tra
 | Framework sprawl from customer requests | Medium | The 70% selection rule. Enforce in writing |
 | Solo dependency on the IR author | Medium | Pair on IR design. Nobody can be the only person who understands it |
 
-## 30. Legal gates, blocking
+## 30. Legal gates, status as of September 2026
 
-Two items must be cleared before writing the compiler, per `funding-and-ip-structure.md`:
+Two items were identified as needing to be cleared before writing the compiler, per `funding-and-ip-structure.md`:
 
 1. Government contracts attorney on FAR 9.5 organizational conflict of interest exposure and mitigability
 2. Written employer position on invention assignment scope
 
-Phase 0 work (crosswalk, rules ingestion, repo foundations) creates little exposure and may proceed. The first real parser should wait.
+Both were driven by one specific fact: a colleague holding a CTO position at another company was going to contribute to this project's development. That colleague is no longer involved in building this. Per the founder, as of this project's current team composition, neither the OCI exposure nor the invention-assignment question has a live vector - there is no other employer with a competing claim, and no colleague-side conflict for FAR 9.5 to weigh. This is recorded as the founder's current assessment, not independent legal sign-off; a quick confirmation from a government contracts attorney is still cheap insurance before this project takes on any federal contracting or SBIR funding directly, particularly since a second OCI vector (this company's own future government contracting relationships) could exist independent of any one individual and hasn't been separately reviewed. Revisit immediately if team composition changes again.
 
-Funding vehicle: SBIR, not conventional contract. Under SBIR, government gets limited and restricted rights for 20 years from award, then government purpose rights permanently, never unlimited. `[verified]` Under standard mixed-funding DFARS 252.227-7014, government gets government purpose rights for a nominal five years, then unlimited rights. `[verified]` That difference is the largest value swing available.
+The first real parser (Phase 1, FR-2) may proceed on this basis.
+
+Funding vehicle question (unresolved, independent of the above): SBIR, not conventional contract, was the prior recommendation. Under SBIR, government gets limited and restricted rights for 20 years from award, then government purpose rights permanently, never unlimited. `[verified]` Under standard mixed-funding DFARS 252.227-7014, government gets government purpose rights for a nominal five years, then unlimited rights. `[verified]` That difference is the largest value swing available. `funding-and-ip-structure.md`, the source for this comparison, was not found in this repository as of this writing - confirm it exists elsewhere before relying on it, and note that this funding-vehicle question is about the company's own IP rights under government funding, not about the team-composition question above; resolving one does not resolve the other.
 
 ## 31. Open decisions
 
