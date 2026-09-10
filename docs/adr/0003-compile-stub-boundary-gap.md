@@ -1,7 +1,7 @@
 # ADR 0003: `cmd/substrate/compile.go` is a stub outside boundary enforcement
 
 Date: 2026-09-09
-Status: Accepted, revisit before Phase 1 front-end work lands
+Status: Accepted. Trigger fired 2026-09-10 - see Update below.
 
 ## Context
 
@@ -52,3 +52,27 @@ no parsing/mapping/emission logic of its own, or `check-boundaries.sh`
 needs a fifth check constraining what `cmd/substrate` is allowed to do
 directly. Whoever picks up the first real Phase 1 front-end ticket should
 read this ADR before writing `compile.go`'s real body.
+
+## Update, 2026-09-10: trigger fired
+
+`internal/frontend/terraform` landed with real HCL parsing (FR-2.1), and
+`compile.go`'s body was rewritten per this ADR's own instruction. Review
+finding: it does not leak. `runCompile` calls
+`terraform.Parse(*source)` for the actual parsing, then only marshals
+the returned `*terraform.ResourceGraph` to JSON and writes it under
+`--out` - no parsing, mapping, or interpretation logic of its own.
+`make boundaries` stays green, and manual review confirms it's green for
+the right reason (nothing to leak), not because the check can't see it.
+
+The second alternative this ADR named - a fifth `check-boundaries.sh`
+check constraining `cmd/substrate` - was considered and not added. The
+existing checks are mechanical (forbidden imports, forbidden vocabulary
+words); "no parsing/mapping/emission logic inline in a CLI command" has
+no equivalent grep-able signature, so a check written today would either
+false-positive on legitimate thin glue code or false-negative on the
+actual risk (business logic that doesn't happen to match whatever
+pattern the check looks for) - closer to checkbox theater than to the
+real invariant. Manual review at each new Phase 1 command is the
+honest cost until a more mechanical signal presents itself; this ADR
+should be re-read at that point, not superseded by a check that doesn't
+actually verify the thing it claims to.

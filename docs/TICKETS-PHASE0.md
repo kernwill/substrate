@@ -152,10 +152,10 @@ Done when: an ADR in `docs/adr/` records the decision and reasoning.
 
 ## Phase 0 exit checklist
 
-- [ ] T-001 crosswalk complete with a number and a go/no-go
-- [ ] T-003 through T-007 rules ingestion working
-- [ ] T-006 authoritative counts replacing vendor numbers
-- [ ] T-008 through T-010 foundations proven in CI
-- [ ] T-012 SOC 2 observation window started
-- [ ] T-013 ten interviews synthesized
-- [ ] Legal gates cleared before Phase 1 parsers begin
+- [x] T-001 crosswalk complete with a number and a go/no-go - `docs/crosswalk-analysis.md`, 82.0% derivable-subset overlap, GO with two conditions
+- [x] T-003 through T-007 rules ingestion working
+- [x] T-006 authoritative counts replacing vendor numbers - `docs/rule-counts.md`
+- [x] T-008 through T-010 foundations proven in CI - `make repro` now passes for real (compile produces real Terraform-parse output as of FR-2.1) and fails on a deliberately introduced timestamp, verified directly; see `docs/adr/0006`
+- [ ] T-012 SOC 2 observation window started - deliberately deferred (stealth)
+- [ ] T-013 ten interviews synthesized - deliberately deferred (stealth)
+- [x] Legal gates cleared before Phase 1 parsers begin - per current team composition, see `REQUIREMENTS.md` section 30 and `docs/adr/0005`; `funding-and-ip-structure.md`'s SBIR-vs-DFARS funding-vehicle question remains separately open

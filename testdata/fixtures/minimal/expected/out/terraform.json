@@ -1,0 +1,152 @@
+{
+  "resources": [
+    {
+      "address": {
+        "type": "aws_s3_bucket",
+        "name": "example"
+      },
+      "attributes": {
+        "bucket": {
+          "value": "substrate-minimal-fixture-example"
+        }
+      },
+      "provenance": {
+        "source_type": "terraform",
+        "locator": {
+          "path": "../../testdata/fixtures/minimal/main.tf",
+          "line": 11
+        },
+        "timestamp": "2026-09-08T23:30:42Z",
+        "collector_version": "terraform/v0.1.0",
+        "basis": "declared",
+        "confidence": "deterministic"
+      }
+    },
+    {
+      "address": {
+        "type": "aws_s3_bucket_public_access_block",
+        "name": "example"
+      },
+      "attributes": {
+        "block_public_acls": {
+          "value": true
+        },
+        "block_public_policy": {
+          "value": true
+        },
+        "bucket": {
+          "unresolved": "value of aws_s3_bucket.example.id is only known after Terraform applies this configuration against a real provider; see this resource's references"
+        },
+        "ignore_public_acls": {
+          "value": true
+        },
+        "restrict_public_buckets": {
+          "value": true
+        }
+      },
+      "references": [
+        {
+          "attribute": "bucket",
+          "target": {
+            "type": "aws_s3_bucket",
+            "name": "example"
+          },
+          "target_attribute": "id"
+        }
+      ],
+      "provenance": {
+        "source_type": "terraform",
+        "locator": {
+          "path": "../../testdata/fixtures/minimal/main.tf",
+          "line": 31
+        },
+        "timestamp": "2026-09-08T23:30:42Z",
+        "collector_version": "terraform/v0.1.0",
+        "basis": "declared",
+        "confidence": "deterministic"
+      }
+    },
+    {
+      "address": {
+        "type": "aws_s3_bucket_server_side_encryption_configuration",
+        "name": "example"
+      },
+      "attributes": {
+        "bucket": {
+          "unresolved": "value of aws_s3_bucket.example.id is only known after Terraform applies this configuration against a real provider; see this resource's references"
+        },
+        "rule": {
+          "value": {
+            "apply_server_side_encryption_by_default": {
+              "value": {
+                "sse_algorithm": {
+                  "value": "aws:kms"
+                }
+              }
+            }
+          }
+        }
+      },
+      "references": [
+        {
+          "attribute": "bucket",
+          "target": {
+            "type": "aws_s3_bucket",
+            "name": "example"
+          },
+          "target_attribute": "id"
+        }
+      ],
+      "provenance": {
+        "source_type": "terraform",
+        "locator": {
+          "path": "../../testdata/fixtures/minimal/main.tf",
+          "line": 22
+        },
+        "timestamp": "2026-09-08T23:30:42Z",
+        "collector_version": "terraform/v0.1.0",
+        "basis": "declared",
+        "confidence": "deterministic"
+      }
+    },
+    {
+      "address": {
+        "type": "aws_s3_bucket_versioning",
+        "name": "example"
+      },
+      "attributes": {
+        "bucket": {
+          "unresolved": "value of aws_s3_bucket.example.id is only known after Terraform applies this configuration against a real provider; see this resource's references"
+        },
+        "versioning_configuration": {
+          "value": {
+            "status": {
+              "value": "Enabled"
+            }
+          }
+        }
+      },
+      "references": [
+        {
+          "attribute": "bucket",
+          "target": {
+            "type": "aws_s3_bucket",
+            "name": "example"
+          },
+          "target_attribute": "id"
+        }
+      ],
+      "provenance": {
+        "source_type": "terraform",
+        "locator": {
+          "path": "../../testdata/fixtures/minimal/main.tf",
+          "line": 15
+        },
+        "timestamp": "2026-09-08T23:30:42Z",
+        "collector_version": "terraform/v0.1.0",
+        "basis": "declared",
+        "confidence": "deterministic"
+      }
+    }
+  ]
+}

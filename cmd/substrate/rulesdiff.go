@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -98,16 +97,11 @@ func runRulesDiff(args []string, stdout, stderr io.Writer) int {
 	}
 
 	if format == "json" {
-		enc := json.NewEncoder(stdout)
-		enc.SetIndent("", "  ")
 		// The vendored dataset's own rule text uses "<", ">", and "&"
 		// verbatim (e.g. "N-rating > 2" in CTL/SI-08 guidance and
-		// FRR/VER-TFR-IRI). json.Encoder HTML-escapes those by default
-		// (for safe embedding in <script> tags), which would silently
-		// rewrite a federal rule's exact wording into >-style
-		// escapes in a diff meant to preserve it verbatim.
-		enc.SetEscapeHTML(false)
-		if err := enc.Encode(diff); err != nil {
+		// FRR/VER-TFR-IRI); writeJSON (jsonutil.go) avoids HTML-escaping
+		// them away.
+		if err := writeJSON(stdout, diff); err != nil {
 			fmt.Fprintf(stderr, "substrate rules diff: encode output: %v\n", err)
 			return 2
 		}
