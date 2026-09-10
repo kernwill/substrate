@@ -9,19 +9,25 @@ import (
 
 	"github.com/kernwill/substrate/internal/frontend/kubernetes"
 	"github.com/kernwill/substrate/internal/frontend/terraform"
+	"github.com/kernwill/substrate/internal/ir"
 )
 
 // runCompile implements "substrate compile --source <dir> --out <dir>"
 // (FR-2 through FR-6: parse Terraform/Kubernetes/CI config, build the
 // evidence graph, emit FedRAMP 20x artifacts).
 //
-// Two of FR-2's three static sources are real today:
+// Two of FR-2's three static sources are real today, and both are now
+// mapped into the evidence graph:
 //   - Terraform: parses *.tf files directly under --source
-//     (internal/frontend/terraform.Parse), written to
-//     <out>/terraform.json.
+//     (internal/frontend/terraform.Parse), written raw to
+//     <out>/terraform.json, then mapped to IR nodes/edges
+//     (terraform.ToIR) via a small, human-reviewed table of which
+//     resource types evidence which NIST 800-53 controls - see that
+//     file's mapping functions for the reasoning behind each entry.
 //   - Kubernetes: parses *.yaml/*.yml files under --source/k8s
-//     (internal/frontend/kubernetes.Parse), written to
-//     <out>/kubernetes.json. The "k8s" subdirectory is a narrow,
+//     (internal/frontend/kubernetes.Parse), written raw to
+//     <out>/kubernetes.json, mapped the same way
+//     (kubernetes.ToIR). The "k8s" subdirectory is a narrow,
 //     provisional convention matching testdata/fixtures/minimal's own
 //     layout, not a general answer to "how does substrate know which
 //     files under --source are Kubernetes manifests versus something
@@ -29,12 +35,17 @@ import (
 //     most likely) is still deferred, same as noted below for
 //     Terraform's own --source scope.
 //
-// GitHub Actions config (the rest of FR-2), building the evidence graph
-// from any of this (internal/ir, FR-5), and emitting FedRAMP artifacts
-// from that graph (internal/backends, FR-6) remain unimplemented - see
-// internal/frontend/terraform's graph.go for the TODO(mapping) on why a
-// resource graph is not yet an ir.Graph, which applies to both parsers
-// here identically.
+// The two frontends' IR output is merged into one ir.Graph, validated,
+// and written as JSON Lines to <out>/ir/nodes.jsonl and
+// <out>/ir/edges.jsonl (ir.WriteNodesJSONL/WriteEdgesJSONL - the
+// package's own stable, byte-reproducible serialization, not ad hoc
+// JSON). Neither frontend's mapping table is comprehensive: a resource
+// type or field with no reviewed entry produces no node, never a
+// guess - see each ToIR's own doc comment.
+//
+// GitHub Actions config (the rest of FR-2) and emitting FedRAMP
+// artifacts from the evidence graph (internal/backends, FR-6) remain
+// unimplemented.
 //
 // testdata/fixtures/minimal's own expected/ output reflects whatever
 // this function currently does; regenerate it deliberately
@@ -82,9 +93,60 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	fmt.Fprintf(stdout, "parsed %d terraform resource(s) and %d kubernetes resource(s) from %s\n",
-		len(tfGraph.Resources), len(k8sGraph.Resources), *source)
+	tfIR, err := terraform.ToIR(tfGraph)
+	if err != nil {
+		fmt.Fprintf(stderr, "substrate compile: map terraform to evidence graph: %v\n", err)
+		return 2
+	}
+	k8sIR, err := kubernetes.ToIR(k8sGraph)
+	if err != nil {
+		fmt.Fprintf(stderr, "substrate compile: map kubernetes to evidence graph: %v\n", err)
+		return 2
+	}
+	evidence := ir.Graph{}
+	evidence.Nodes = append(evidence.Nodes, tfIR.Nodes...)
+	evidence.Nodes = append(evidence.Nodes, k8sIR.Nodes...)
+	evidence.Edges = append(evidence.Edges, tfIR.Edges...)
+	evidence.Edges = append(evidence.Edges, k8sIR.Edges...)
+	if err := evidence.Validate(); err != nil {
+		fmt.Fprintf(stderr, "substrate compile: evidence graph: %v\n", err)
+		return 2
+	}
+
+	irDir := filepath.Join(*out, "ir")
+	if err := os.MkdirAll(irDir, 0o755); err != nil {
+		fmt.Fprintf(stderr, "substrate compile: create output directory %s: %v\n", irDir, err)
+		return 2
+	}
+	if err := writeJSONLArtifact(irDir, "nodes.jsonl", evidence.Nodes, ir.WriteNodesJSONL); err != nil {
+		fmt.Fprintf(stderr, "substrate compile: %v\n", err)
+		return 2
+	}
+	if err := writeJSONLArtifact(irDir, "edges.jsonl", evidence.Edges, ir.WriteEdgesJSONL); err != nil {
+		fmt.Fprintf(stderr, "substrate compile: %v\n", err)
+		return 2
+	}
+
+	fmt.Fprintf(stdout, "parsed %d terraform resource(s) and %d kubernetes resource(s) from %s; compiled %d evidence node(s) and %d edge(s)\n",
+		len(tfGraph.Resources), len(k8sGraph.Resources), *source, len(evidence.Nodes), len(evidence.Edges))
 	return 0
+}
+
+// writeJSONLArtifact writes items to <dir>/<name> using write (one of
+// ir.WriteNodesJSONL / ir.WriteEdgesJSONL), so the evidence graph is
+// serialized with the IR package's own stable, byte-reproducible JSON
+// Lines encoding rather than ad hoc JSON.
+func writeJSONLArtifact[T any](dir, name string, items []T, write func(io.Writer, []T) error) error {
+	path := filepath.Join(dir, name)
+	f, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("create %s: %w", path, err)
+	}
+	defer f.Close()
+	if err := write(f, items); err != nil {
+		return fmt.Errorf("write %s: %w", path, err)
+	}
+	return nil
 }
 
 // writeArtifact writes v as JSON to <outDir>/<name>.
