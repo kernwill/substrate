@@ -511,14 +511,14 @@ Resolved:
 - Backend one is FedRAMP 20x, not RMF. Section 3.
 - Backend two is CMMC and 800-171, chosen as a thesis test. Section 20.
 - Deployment is CLI-first, hosted findings-only plane in year two. Section 19.
+- Class A subject is the eventual hosted control plane, never an earlier or hollow entity stood up solely to hold a badge. `docs/adr/0005-class-a-certification-subject.md` (T-015).
 
 Still open:
 
 1. Design partner. Ideal is a commercial SaaS company facing the 2027 deadlines. If the network produces a government partner instead, take it for revenue but find a commercial one too, or Phase 1 requirements drift toward one customer.
 2. Services bridge. Recommend yes, capped at a fixed fraction of the week, scoped as FedRAMP package work so it doubles as research.
-3. Class A subject. Recommend the eventual hosted control plane, with Phase 0 only starting the SOC 2 clock.
-4. Company and product name, and domain. `substrate` is a working placeholder. Run a trademark search.
-5. Entity and jurisdiction. Needed before the SOC 2 engagement.
-6. Advisory services listing on the FedRAMP Marketplace, which CR26 opens in 2026. Recommend yes eventually, not before we have something to advise on.
-7. Independent assessment service recognition. CR26 permits doing both with disclosure. `[verified]` Recommend no for two years; being the neutral tool every assessor likes is worth more.
-8. AI model and vendor selection, and whether customers accept their infrastructure being read by a hosted model. Real objection in this market. Ask in discovery.
+3. Company and product name, and domain. `substrate` is a working placeholder. Run a trademark search.
+4. Entity and jurisdiction. Needed before the SOC 2 engagement.
+5. Advisory services listing on the FedRAMP Marketplace, which CR26 opens in 2026. Recommend yes eventually, not before we have something to advise on.
+6. Independent assessment service recognition. CR26 permits doing both with disclosure. `[verified]` Recommend no for two years; being the neutral tool every assessor likes is worth more.
+7. AI model and vendor selection, and whether customers accept their infrastructure being read by a hosted model. Real objection in this market. Ask in discovery.
