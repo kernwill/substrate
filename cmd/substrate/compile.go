@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/kernwill/substrate/internal/frontend/githubactions"
 	"github.com/kernwill/substrate/internal/frontend/kubernetes"
 	"github.com/kernwill/substrate/internal/frontend/terraform"
 	"github.com/kernwill/substrate/internal/ir"
@@ -16,7 +17,7 @@ import (
 // (FR-2 through FR-6: parse Terraform/Kubernetes/CI config, build the
 // evidence graph, emit FedRAMP 20x artifacts).
 //
-// Two of FR-2's three static sources are real today, and both are now
+// All three of FR-2's static sources are real today, and all three are
 // mapped into the evidence graph:
 //   - Terraform: parses *.tf files directly under --source
 //     (internal/frontend/terraform.Parse), written raw to
@@ -26,26 +27,33 @@ import (
 //     file's mapping functions for the reasoning behind each entry.
 //   - Kubernetes: parses *.yaml/*.yml files under --source/k8s
 //     (internal/frontend/kubernetes.Parse), written raw to
-//     <out>/kubernetes.json, mapped the same way
-//     (kubernetes.ToIR). The "k8s" subdirectory is a narrow,
-//     provisional convention matching testdata/fixtures/minimal's own
-//     layout, not a general answer to "how does substrate know which
-//     files under --source are Kubernetes manifests versus something
-//     else" - a real include/exclude design (a .gitignore-style filter,
-//     most likely) is still deferred, same as noted below for
-//     Terraform's own --source scope.
+//     <out>/kubernetes.json, mapped the same way (kubernetes.ToIR).
+//   - GitHub Actions: parses *.yml/*.yaml files under
+//     --source/.github/workflows (internal/frontend/githubactions.Parse),
+//     written raw to <out>/github_actions.json, mapped the same way
+//     (githubactions.ToIR). Only two of FR-2.6's five bullet points are
+//     genuinely static-file-parseable - required reviews, branch
+//     protection, and deployment approvals are GitHub repository
+//     settings, not workflow YAML content, and need a live API
+//     collector (FR-3-shaped work) that doesn't exist yet - see that
+//     package's own doc.go.
 //
-// The two frontends' IR output is merged into one ir.Graph, validated,
+// The "k8s" and ".github/workflows" subdirectories are narrow,
+// provisional conventions matching testdata/fixtures/minimal's own
+// layout, not a general answer to "how does substrate know which files
+// under --source belong to which frontend" - a real include/exclude
+// design (a .gitignore-style filter, most likely) is still deferred.
+//
+// All three frontends' IR output is merged into one ir.Graph, validated,
 // and written as JSON Lines to <out>/ir/nodes.jsonl and
 // <out>/ir/edges.jsonl (ir.WriteNodesJSONL/WriteEdgesJSONL - the
 // package's own stable, byte-reproducible serialization, not ad hoc
-// JSON). Neither frontend's mapping table is comprehensive: a resource
-// type or field with no reviewed entry produces no node, never a
-// guess - see each ToIR's own doc comment.
+// JSON). No frontend's mapping table is comprehensive: a resource type
+// or field with no reviewed entry produces no node, never a guess - see
+// each ToIR's own doc comment.
 //
-// GitHub Actions config (the rest of FR-2) and emitting FedRAMP
-// artifacts from the evidence graph (internal/backends, FR-6) remain
-// unimplemented.
+// Emitting FedRAMP artifacts from the evidence graph (internal/backends,
+// FR-6) remains unimplemented.
 //
 // testdata/fixtures/minimal's own expected/ output reflects whatever
 // this function currently does; regenerate it deliberately
@@ -79,6 +87,11 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "substrate compile: parse kubernetes: %v\n", err)
 		return 2
 	}
+	ghaGraph, err := githubactions.Parse(filepath.Join(*source, ".github", "workflows"))
+	if err != nil {
+		fmt.Fprintf(stderr, "substrate compile: parse github actions: %v\n", err)
+		return 2
+	}
 
 	if err := os.MkdirAll(*out, 0o755); err != nil {
 		fmt.Fprintf(stderr, "substrate compile: create output directory %s: %v\n", *out, err)
@@ -89,6 +102,10 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	if err := writeArtifact(*out, "kubernetes.json", k8sGraph); err != nil {
+		fmt.Fprintf(stderr, "substrate compile: %v\n", err)
+		return 2
+	}
+	if err := writeArtifact(*out, "github_actions.json", ghaGraph); err != nil {
 		fmt.Fprintf(stderr, "substrate compile: %v\n", err)
 		return 2
 	}
@@ -103,11 +120,18 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "substrate compile: map kubernetes to evidence graph: %v\n", err)
 		return 2
 	}
+	ghaIR, err := githubactions.ToIR(ghaGraph)
+	if err != nil {
+		fmt.Fprintf(stderr, "substrate compile: map github actions to evidence graph: %v\n", err)
+		return 2
+	}
 	evidence := ir.Graph{}
 	evidence.Nodes = append(evidence.Nodes, tfIR.Nodes...)
 	evidence.Nodes = append(evidence.Nodes, k8sIR.Nodes...)
+	evidence.Nodes = append(evidence.Nodes, ghaIR.Nodes...)
 	evidence.Edges = append(evidence.Edges, tfIR.Edges...)
 	evidence.Edges = append(evidence.Edges, k8sIR.Edges...)
+	evidence.Edges = append(evidence.Edges, ghaIR.Edges...)
 	if err := evidence.Validate(); err != nil {
 		fmt.Fprintf(stderr, "substrate compile: evidence graph: %v\n", err)
 		return 2
@@ -127,8 +151,8 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	fmt.Fprintf(stdout, "parsed %d terraform resource(s) and %d kubernetes resource(s) from %s; compiled %d evidence node(s) and %d edge(s)\n",
-		len(tfGraph.Resources), len(k8sGraph.Resources), *source, len(evidence.Nodes), len(evidence.Edges))
+	fmt.Fprintf(stdout, "parsed %d terraform resource(s), %d kubernetes resource(s), and %d github actions workflow(s) from %s; compiled %d evidence node(s) and %d edge(s)\n",
+		len(tfGraph.Resources), len(k8sGraph.Resources), len(ghaGraph.Workflows), *source, len(evidence.Nodes), len(evidence.Edges))
 	return 0
 }
 

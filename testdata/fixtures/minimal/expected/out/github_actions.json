@@ -1,0 +1,65 @@
+{
+  "workflows": [
+    {
+      "address": {
+        "path": "../../testdata/fixtures/minimal/.github/workflows/ci.yml",
+        "name": "CI"
+      },
+      "attributes": {
+        "jobs": {
+          "dependency-review": {
+            "if": "github.event_name == 'pull_request'",
+            "runs-on": "ubuntu-latest",
+            "steps": [
+              {
+                "uses": "actions/checkout@v4"
+              },
+              {
+                "uses": "actions/dependency-review-action@v4"
+              }
+            ]
+          },
+          "test": {
+            "runs-on": "ubuntu-latest",
+            "steps": [
+              {
+                "uses": "actions/checkout@v4"
+              },
+              {
+                "name": "Run tests",
+                "run": "make test"
+              }
+            ]
+          }
+        },
+        "name": "CI",
+        "on": {
+          "pull_request": {
+            "branches": [
+              "main"
+            ]
+          },
+          "push": {
+            "branches": [
+              "main"
+            ]
+          }
+        },
+        "permissions": {
+          "contents": "read"
+        }
+      },
+      "provenance": {
+        "source_type": "github_actions",
+        "locator": {
+          "path": "../../testdata/fixtures/minimal/.github/workflows/ci.yml",
+          "line": 1
+        },
+        "timestamp": "2026-09-08T23:30:42Z",
+        "collector_version": "githubactions/v0.1.0",
+        "basis": "declared",
+        "confidence": "deterministic"
+      }
+    }
+  ]
+}

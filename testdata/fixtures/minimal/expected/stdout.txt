@@ -1,1 +1,1 @@
-parsed 4 terraform resource(s) and 2 kubernetes resource(s) from ../../testdata/fixtures/minimal; compiled 6 evidence node(s) and 0 edge(s)
+parsed 4 terraform resource(s), 2 kubernetes resource(s), and 1 github actions workflow(s) from ../../testdata/fixtures/minimal; compiled 8 evidence node(s) and 0 edge(s)
