@@ -1,0 +1,113 @@
+{
+  "resources": [
+    {
+      "address": {
+        "api_version": "apps/v1",
+        "kind": "Deployment",
+        "name": "example-app"
+      },
+      "attributes": {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {
+          "labels": {
+            "app": "example-app"
+          },
+          "name": "example-app"
+        },
+        "spec": {
+          "replicas": 2,
+          "selector": {
+            "matchLabels": {
+              "app": "example-app"
+            }
+          },
+          "template": {
+            "metadata": {
+              "labels": {
+                "app": "example-app"
+              }
+            },
+            "spec": {
+              "containers": [
+                {
+                  "image": "example-registry.internal/example-app:1.0.0",
+                  "name": "example-app",
+                  "resources": {
+                    "limits": {
+                      "cpu": "500m",
+                      "memory": "256Mi"
+                    }
+                  },
+                  "securityContext": {
+                    "allowPrivilegeEscalation": false,
+                    "capabilities": {
+                      "drop": [
+                        "ALL"
+                      ]
+                    },
+                    "readOnlyRootFilesystem": true
+                  }
+                }
+              ],
+              "securityContext": {
+                "runAsNonRoot": true,
+                "runAsUser": 10000,
+                "seccompProfile": {
+                  "type": "RuntimeDefault"
+                }
+              }
+            }
+          }
+        }
+      },
+      "provenance": {
+        "source_type": "kubernetes",
+        "locator": {
+          "path": "../../testdata/fixtures/minimal/k8s/deployment.yaml",
+          "line": 1
+        },
+        "timestamp": "2026-09-08T23:30:42Z",
+        "collector_version": "kubernetes/v0.1.0",
+        "basis": "declared",
+        "confidence": "deterministic"
+      }
+    },
+    {
+      "address": {
+        "api_version": "networking.k8s.io/v1",
+        "kind": "NetworkPolicy",
+        "name": "example-app-default-deny"
+      },
+      "attributes": {
+        "apiVersion": "networking.k8s.io/v1",
+        "kind": "NetworkPolicy",
+        "metadata": {
+          "name": "example-app-default-deny"
+        },
+        "spec": {
+          "podSelector": {
+            "matchLabels": {
+              "app": "example-app"
+            }
+          },
+          "policyTypes": [
+            "Ingress",
+            "Egress"
+          ]
+        }
+      },
+      "provenance": {
+        "source_type": "kubernetes",
+        "locator": {
+          "path": "../../testdata/fixtures/minimal/k8s/deployment.yaml",
+          "line": 35
+        },
+        "timestamp": "2026-09-08T23:30:42Z",
+        "collector_version": "kubernetes/v0.1.0",
+        "basis": "declared",
+        "confidence": "deterministic"
+      }
+    }
+  ]
+}

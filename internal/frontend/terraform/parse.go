@@ -1,10 +1,8 @@
 package terraform
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -16,6 +14,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
+	"github.com/kernwill/substrate/internal/frontend/vcs"
 	"github.com/kernwill/substrate/internal/provenance"
 )
 
@@ -55,7 +54,7 @@ func Parse(dir string) (*ResourceGraph, error) {
 		if !ok {
 			return nil, fmt.Errorf("terraform: %s: unsupported HCL body implementation", path)
 		}
-		t, err := gitCommitTime(dir, filepath.Base(path))
+		t, err := vcs.CommitTime(dir, filepath.Base(path))
 		if err != nil {
 			return nil, fmt.Errorf("terraform: %s: %w", path, err)
 		}
@@ -116,45 +115,6 @@ func Parse(dir string) (*ResourceGraph, error) {
 		})
 	}
 	return graph, nil
-}
-
-// gitCommitTime returns filename's (relative to dir) last commit time
-// from git, as the Provenance.Timestamp for facts parsed from it -
-// "when the fact was true at the source," per that field's own doc
-// comment, which names a file's last commit as exactly this case.
-//
-// The filesystem's own modification time was considered and rejected:
-// it is not preserved by git, so the same committed file produces a
-// different, environment-dependent timestamp on every fresh checkout -
-// exactly the kind of non-reproducible value NFR-3 and this project's
-// "no wall-clock time in output" principle exist to rule out elsewhere.
-//
-// This does mean substrate compile now shells out to the git binary,
-// in tension with NFR-1's "no runtime dependencies." That tradeoff was
-// made deliberately (see docs/adr/0006): git is close to universally
-// present in the environments this tool runs in (a developer's machine
-// or CI, compiling their own Terraform), and a wrong-but-present
-// timestamp is a worse failure mode than a clear, loud error when git
-// or a commit is missing - which is what an unparseable or untracked
-// file gets here, never a guess.
-func gitCommitTime(dir, filename string) (time.Time, error) {
-	cmd := exec.Command("git", "log", "-1", "--format=%cI", "--", filename)
-	cmd.Dir = dir
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return time.Time{}, fmt.Errorf("git log --format=%%cI -- %s: %w (%s)", filename, err, strings.TrimSpace(stderr.String()))
-	}
-	line := strings.TrimSpace(stdout.String())
-	if line == "" {
-		return time.Time{}, fmt.Errorf("%s has no git commit history - substrate requires Terraform files to be committed, so their provenance timestamp (last commit time) is reproducible across checkouts, unlike filesystem modification time", filename)
-	}
-	t, err := time.Parse(time.RFC3339, line)
-	if err != nil {
-		return time.Time{}, fmt.Errorf("parse git commit time %q for %s: %w", line, filename, err)
-	}
-	return t.UTC(), nil
 }
 
 // collectVariables evaluates every top-level "variable" block's

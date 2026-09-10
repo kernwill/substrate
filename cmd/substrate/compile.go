@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/kernwill/substrate/internal/frontend/kubernetes"
 	"github.com/kernwill/substrate/internal/frontend/terraform"
 )
 
@@ -14,15 +15,26 @@ import (
 // (FR-2 through FR-6: parse Terraform/Kubernetes/CI config, build the
 // evidence graph, emit FedRAMP 20x artifacts).
 //
-// Only the Terraform half of FR-2.1 is real today: it parses *.tf files
-// directly under --source (internal/frontend/terraform.Parse) and
-// writes the resulting resource graph, as JSON, to
-// <out>/terraform.json. Kubernetes manifests and GitHub Actions config
-// (the rest of FR-2), building the evidence graph from any of it
-// (internal/ir, FR-5), and emitting FedRAMP artifacts from that graph
-// (internal/backends, FR-6) remain unimplemented - see
-// internal/frontend/terraform's own package doc and graph.go's
-// TODO(mapping) for why a resource graph is not yet an ir.Graph.
+// Two of FR-2's three static sources are real today:
+//   - Terraform: parses *.tf files directly under --source
+//     (internal/frontend/terraform.Parse), written to
+//     <out>/terraform.json.
+//   - Kubernetes: parses *.yaml/*.yml files under --source/k8s
+//     (internal/frontend/kubernetes.Parse), written to
+//     <out>/kubernetes.json. The "k8s" subdirectory is a narrow,
+//     provisional convention matching testdata/fixtures/minimal's own
+//     layout, not a general answer to "how does substrate know which
+//     files under --source are Kubernetes manifests versus something
+//     else" - a real include/exclude design (a .gitignore-style filter,
+//     most likely) is still deferred, same as noted below for
+//     Terraform's own --source scope.
+//
+// GitHub Actions config (the rest of FR-2), building the evidence graph
+// from any of this (internal/ir, FR-5), and emitting FedRAMP artifacts
+// from that graph (internal/backends, FR-6) remain unimplemented - see
+// internal/frontend/terraform's graph.go for the TODO(mapping) on why a
+// resource graph is not yet an ir.Graph, which applies to both parsers
+// here identically.
 //
 // testdata/fixtures/minimal's own expected/ output reflects whatever
 // this function currently does; regenerate it deliberately
@@ -46,9 +58,14 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	graph, err := terraform.Parse(*source)
+	tfGraph, err := terraform.Parse(*source)
 	if err != nil {
 		fmt.Fprintf(stderr, "substrate compile: parse terraform: %v\n", err)
+		return 2
+	}
+	k8sGraph, err := kubernetes.Parse(filepath.Join(*source, "k8s"))
+	if err != nil {
+		fmt.Fprintf(stderr, "substrate compile: parse kubernetes: %v\n", err)
 		return 2
 	}
 
@@ -56,18 +73,30 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "substrate compile: create output directory %s: %v\n", *out, err)
 		return 2
 	}
-	outPath := filepath.Join(*out, "terraform.json")
-	f, err := os.Create(outPath)
-	if err != nil {
-		fmt.Fprintf(stderr, "substrate compile: create %s: %v\n", outPath, err)
+	if err := writeArtifact(*out, "terraform.json", tfGraph); err != nil {
+		fmt.Fprintf(stderr, "substrate compile: %v\n", err)
 		return 2
 	}
-	defer f.Close()
-	if err := writeJSON(f, graph); err != nil {
-		fmt.Fprintf(stderr, "substrate compile: write %s: %v\n", outPath, err)
+	if err := writeArtifact(*out, "kubernetes.json", k8sGraph); err != nil {
+		fmt.Fprintf(stderr, "substrate compile: %v\n", err)
 		return 2
 	}
 
-	fmt.Fprintf(stdout, "parsed %d terraform resource(s) from %s\n", len(graph.Resources), *source)
+	fmt.Fprintf(stdout, "parsed %d terraform resource(s) and %d kubernetes resource(s) from %s\n",
+		len(tfGraph.Resources), len(k8sGraph.Resources), *source)
 	return 0
+}
+
+// writeArtifact writes v as JSON to <outDir>/<name>.
+func writeArtifact(outDir, name string, v any) error {
+	path := filepath.Join(outDir, name)
+	f, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("create %s: %w", path, err)
+	}
+	defer f.Close()
+	if err := writeJSON(f, v); err != nil {
+		return fmt.Errorf("write %s: %w", path, err)
+	}
+	return nil
 }
