@@ -52,6 +52,8 @@ Decision locked. Reasoning preserved so it is not casually reopened.
 
 RMF and eMASS would be the alternative if a government anchor customer were certain. It is not, and FedRAMP-first costs almost nothing if one appears, since both sit directly on 800-53. `[inference]`
 
+FedRAMP, NIST 800-171, and CJIS all anchor natively on 800-53: FedRAMP publishes its own KSI-to-800-53 crosswalk, NIST publishes an 800-171-to-800-53 mapping, and CJIS 6.0+ restructured its policy areas directly onto 800-53 families. That is independent validation of keying the IR on 800-53 control families (FR-5.2) - three of four frameworks scored in the crosswalk analysis made that decision for us rather than us inferring it. It also means the control-level mapping itself is a lookup any competitor can obtain as cheaply as we can. It is not a moat. Artifact-level evidence collection and reconciliation are. See `docs/crosswalk-analysis.md` section 2.2. `[inference]`
+
 ## 4. Market timing
 
 | Date | Event | Status |
@@ -188,6 +190,10 @@ This is the evidence-of-effectiveness half (IVV-CSO-SEE).
 | FR-5.5 | Queryable: `substrate ir query --control AC-2` returns all bearing facts with provenance | MUST |
 | FR-5.6 | Contains zero framework-specific vocabulary | MUST |
 | FR-5.7 | Snapshot retention for trend and drift analysis | SHOULD |
+| FR-5.8 | Represent partial control satisfaction. A single control's evidence can split between a derivable portion (evidenced mechanically) and a non-derivable, human-attested portion; the IR must track both independently rather than collapsing a control into one boolean or one enum value | MUST |
+| FR-5.9 | Store measurements, not verdicts. A node records the underlying collected fact (e.g. log retention as an integer number of days), never a framework's pass/fail predicate over it. Threshold and predicate evaluation belongs in the backend, not the IR | MUST |
+
+FR-5.8 and FR-5.9 are both direct findings from `docs/crosswalk-analysis.md` section 9, not speculative design. Cryptographic key management (SC-12) is the worked example for FR-5.8: `KSI-SVC-ASM`'s rotation and policy management is fully derivable, but PCI DSS's split-knowledge, dual-control key ceremony for manual clear-text key operations is a scanned form signed by two named humans, not infrastructure evidence - modeling the control as satisfied-or-not would either hide a real gap or discard a real, mechanically-proven partial result (crosswalk section 7.1). Log retention (AU-11) is the worked example for FR-5.9: it is one collected integer, and each framework asserts a different minimum against it (crosswalk section 3, row 18); an IR node that stored "meets retention requirement" instead of "retention is N days" would be a framework-specific leak into a package FR-5.6 requires to stay framework-agnostic.
 
 ## 11. FR-6: FedRAMP 20x backend
 
@@ -198,10 +204,14 @@ This is the evidence-of-effectiveness half (IVV-CSO-SEE).
 | FR-6.3 | Emit Secure Configuration Guide | MUST |
 | FR-6.4 | Emit Security Decision Record as an append-only log with current-state projection | MUST |
 | FR-6.5 | Machine-readable primary output; human-readable generated from it | MUST |
-| FR-6.6 | Per-rule status: `satisfied`, `not_satisfied`, `undetermined`, `not_applicable`. Undetermined carries a reason and a remediation hint | MUST |
+| FR-6.6 | Per-rule status: `satisfied`, `not_satisfied`, `undetermined`, `not_applicable`, `requires_attestation`. Undetermined carries a reason and a remediation hint. `requires_attestation` is distinct from undetermined - undetermined means the compiler could not determine the status; requires_attestation means the status is determinately outside the compiler's reach (a manual process, not a collection gap) - and carries the attester's identity and the date attested | MUST |
 | FR-6.7 | Coverage report: automated vs human-attested vs not visible | MUST |
 | FR-6.8 | Draft narrative generation for human-attested items, marked draft, requiring explicit approval | SHOULD |
 | FR-6.9 | No DOCX or XLSX output, ever. CR26 retires both formats `[verified]` | WON'T |
+
+`requires_attestation` (FR-6.6) comes from `docs/crosswalk-analysis.md` section 9: key ceremony split knowledge, segmentation validation by penetration test, disaster recovery exercises, incident response tabletop testing, and personnel background checks (crosswalk rows 31, 35, 41, 43, 46) are not cases where the compiler failed to determine an answer - they are determinately outside what any compiler can observe, ever. Collapsing them into `undetermined` would misrepresent what the product covers, and an assessor would notice.
+
+FR-6.7's coverage report is a truthfulness requirement, not a nice-to-have. The crosswalk analysis found that roughly 20% of sampled framework requirements (9 of 46 objectives) are not infrastructure-derivable at all - background checks, training completion and effectiveness, DR exercises, incident response tabletops, key ceremonies - and that is a permanent boundary of the product, not a gap later phases close. Publishing which requirements are automated, which are `requires_attestation`, and which are not touched at all is what keeps every coverage claim this product makes honest.
 
 ## 12. FR-7: CI gate
 
