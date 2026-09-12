@@ -107,10 +107,12 @@ func mapPodSecurityContext(r Resource) ([]ir.Node, error) {
 // mapNetworkPolicyDefaultDeny maps a NetworkPolicy to SC-7(5) (Boundary
 // Protection - Deny by Default), specifically when it declares both
 // Ingress and Egress policy types with no rules of either kind -
-// Kubernetes' default-deny idiom. A NetworkPolicy that lists actual
-// allow rules is a different posture (allow-by-exception, which is
-// real but not yet distinguished from "well-scoped" here) and is left
-// unmapped rather than guessed at.
+// Kubernetes' default-deny idiom. This includes a spec that spells the
+// empty rule list out explicitly ("ingress: []"), not just one that
+// omits the field entirely - see hasRules. A NetworkPolicy that lists
+// actual allow rules is a different posture (allow-by-exception, which
+// is real but not yet distinguished from "well-scoped" here) and is
+// left unmapped rather than guessed at.
 func mapNetworkPolicyDefaultDeny(r Resource) ([]ir.Node, error) {
 	spec, ok := asMap(r.Attributes["spec"])
 	if !ok {
@@ -126,9 +128,7 @@ func mapNetworkPolicyDefaultDeny(r Resource) ([]ir.Node, error) {
 			hasEgressType = true
 		}
 	}
-	_, hasIngressRules := spec["ingress"]
-	_, hasEgressRules := spec["egress"]
-	if !hasIngressType || !hasEgressType || hasIngressRules || hasEgressRules {
+	if !hasIngressType || !hasEgressType || hasRules(spec["ingress"]) || hasRules(spec["egress"]) {
 		return nil, nil
 	}
 
@@ -142,6 +142,20 @@ func mapNetworkPolicyDefaultDeny(r Resource) ([]ir.Node, error) {
 		Provenance:    r.Provenance,
 		SchemaVersion: ir.SchemaVersion,
 	}}, nil
+}
+
+// hasRules reports whether v - a NetworkPolicy spec's "ingress" or
+// "egress" field, decoded from YAML - actually lists any rule.
+//
+// Checking the field's mere presence in the map (an earlier version of
+// mapNetworkPolicyDefaultDeny did exactly that: `_, ok := spec["ingress"]`)
+// is not the same question: an explicit "ingress: []" - still valid,
+// still the more auditable way to spell default-deny - decodes to a
+// present key holding an empty slice, and mere-presence would wrongly
+// disqualify it from the exact posture this mapper exists to recognize.
+func hasRules(v any) bool {
+	list, ok := v.([]any)
+	return ok && len(list) > 0
 }
 
 func nodeID(addr ResourceAddress, suffix string) ir.NodeID {

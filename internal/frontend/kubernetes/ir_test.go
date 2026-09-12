@@ -135,6 +135,44 @@ spec:
 	}
 }
 
+// TestMapNetworkPolicyAcceptsExplicitEmptyRuleLists is a regression test:
+// an earlier version of mapNetworkPolicyDefaultDeny checked only whether
+// the "ingress"/"egress" keys were present in the spec, not whether their
+// value actually listed a rule - so this explicit (and more auditable)
+// spelling of default-deny was wrongly treated the same as a policy with
+// real allow rules and left unmapped.
+func TestMapNetworkPolicyAcceptsExplicitEmptyRuleLists(t *testing.T) {
+	dir := t.TempDir()
+	writeYAML(t, dir, "main.yaml", `
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: explicit-default-deny
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress: []
+  egress: []
+`)
+	initGitRepo(t, dir)
+	g, err := Parse(dir)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	irGraph, err := ToIR(g)
+	if err != nil {
+		t.Fatalf("ToIR: %v", err)
+	}
+	if len(irGraph.Nodes) != 1 {
+		t.Fatalf("got %d nodes, want 1 (explicit empty ingress/egress lists are still default-deny)", len(irGraph.Nodes))
+	}
+	if irGraph.Nodes[0].ControlFamily != "SC" {
+		t.Errorf("ControlFamily = %q, want SC", irGraph.Nodes[0].ControlFamily)
+	}
+}
+
 func TestMapNetworkPolicyRequiresBothPolicyTypes(t *testing.T) {
 	dir := t.TempDir()
 	writeYAML(t, dir, "main.yaml", `

@@ -176,12 +176,25 @@ func mapPublicAccessBlock(r Resource) (ir.Node, bool, error) {
 // stored as a string). An Unresolved or nil-valued attribute has
 // nothing to measure, so it's simply absent from the result rather
 // than represented some other way.
+//
+// A resolved string value of "" gets the same treatment: every string
+// attribute this package's mapping functions read (versioning's
+// "status", encryption's "sse_algorithm") is one of a small set of
+// non-empty enumerated values in real Terraform - "" is never a
+// legitimate instance of either, only ever the sign of an interpolation
+// that resolved to nothing (e.g. a variable with an empty default that
+// nothing overrode). Treating it as present, measured data - what an
+// earlier version of this function did - would count as evidence a
+// mapper never actually observed any real configuration for.
 func attrString(v AttributeValue) (string, bool) {
 	if v.Unresolved != "" || v.Value == nil {
 		return "", false
 	}
 	switch val := v.Value.(type) {
 	case string:
+		if val == "" {
+			return "", false
+		}
 		return val, true
 	case bool:
 		return strconv.FormatBool(val), true

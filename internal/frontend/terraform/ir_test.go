@@ -127,6 +127,36 @@ resource "aws_s3_bucket_public_access_block" "b" {
 	}
 }
 
+// TestMapVersioningIgnoresEmptyStringStatus is a regression test: an
+// earlier version of attrString treated a resolved-but-empty string
+// literal as present, measured data, indistinguishable from a real
+// "Enabled"/"Suspended"/"Disabled" value. "" is never a legitimate
+// status Terraform itself would accept; only ever the trace of an
+// interpolation that resolved to nothing.
+func TestMapVersioningIgnoresEmptyStringStatus(t *testing.T) {
+	dir := t.TempDir()
+	writeTF(t, dir, "main.tf", `
+resource "aws_s3_bucket_versioning" "example" {
+  bucket = "b"
+  versioning_configuration {
+    status = ""
+  }
+}
+`)
+	initGitRepo(t, dir)
+	g, err := Parse(dir)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	irGraph, err := ToIR(g)
+	if err != nil {
+		t.Fatalf("ToIR: %v", err)
+	}
+	if len(irGraph.Nodes) != 0 {
+		t.Errorf("got %d nodes, want 0 (an empty string literal has nothing to measure)", len(irGraph.Nodes))
+	}
+}
+
 func TestMapVersioningIgnoresUnresolvedStatus(t *testing.T) {
 	dir := t.TempDir()
 	writeTF(t, dir, "main.tf", `

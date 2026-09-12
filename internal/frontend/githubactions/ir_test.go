@@ -117,6 +117,41 @@ jobs:
 	}
 }
 
+// TestMapPermissionsRecordsExplicitEmptyBlock is a regression test: an
+// earlier version of mapPermissions treated "permissions: {}" the same
+// as no permissions block at all (both fell through the same `len ==
+// 0` check), discarding GitHub's own strictest-possible declaration -
+// every scope explicitly set to no access - as if nothing had been
+// declared.
+func TestMapPermissionsRecordsExplicitEmptyBlock(t *testing.T) {
+	dir := t.TempDir()
+	writeWorkflow(t, dir, "ci.yml", `
+name: CI
+on: push
+permissions: {}
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo hi
+`)
+	initGitRepo(t, dir)
+	g, err := Parse(dir)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	irGraph, err := ToIR(g)
+	if err != nil {
+		t.Fatalf("ToIR: %v", err)
+	}
+	if len(irGraph.Nodes) != 1 {
+		t.Fatalf("got %d nodes, want 1 (an explicit empty block is a real, strictest-possible declaration, not an absent one)", len(irGraph.Nodes))
+	}
+	if got := irGraph.Nodes[0].Attributes; len(got) != 0 {
+		t.Errorf("Attributes = %v, want empty (no scopes granted)", got)
+	}
+}
+
 func TestMapDependencyReviewIgnoresUnrelatedActions(t *testing.T) {
 	dir := t.TempDir()
 	writeWorkflow(t, dir, "ci.yml", `

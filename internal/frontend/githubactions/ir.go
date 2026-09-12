@@ -44,13 +44,30 @@ func nodeID(addr WorkflowAddress, suffix string) ir.NodeID {
 // scopes are recorded verbatim (e.g. "contents": "read") - whether a
 // given set of scopes counts as sufficiently least-privileged is a
 // backend predicate, not this package's call (FR-5.9). A workflow with
-// no explicit permissions block - relying on whatever default the
+// no explicit permissions block at all - relying on whatever default the
 // account or organization has configured - has nothing declared to
 // measure, so it produces no node, the same treatment an unmapped
 // Terraform or Kubernetes resource gets.
+//
+// An explicit but empty block ("permissions: {}") is different: GitHub
+// documents that shape as explicitly setting every scope to no access,
+// its own strictest possible declaration - not an absence of one. This
+// mapper distinguishes the two by checking the key's presence in
+// w.Attributes before the type assertion, rather than folding "map
+// present but empty" into the same "nothing to measure" case as "no map
+// at all" (an earlier version did exactly that, silently discarding the
+// one workflow shape that most directly evidences AC-6).
 func mapPermissions(w Workflow) (ir.Node, bool) {
-	perms, ok := w.Attributes["permissions"].(map[string]any)
-	if !ok || len(perms) == 0 {
+	raw, exists := w.Attributes["permissions"]
+	if !exists {
+		return ir.Node{}, false
+	}
+	perms, ok := raw.(map[string]any)
+	if !ok {
+		// A shorthand string form ("permissions: read-all" or
+		// "write-all") isn't the scope-map shape this mapper models;
+		// left unmapped rather than guessed at, same as no permissions
+		// block at all.
 		return ir.Node{}, false
 	}
 	attrs := make(map[string]string, len(perms))
@@ -60,9 +77,6 @@ func mapPermissions(w Workflow) (ir.Node, bool) {
 			continue
 		}
 		attrs[scope] = s
-	}
-	if len(attrs) == 0 {
-		return ir.Node{}, false
 	}
 	return ir.Node{
 		ID:            nodeID(w.Address, "permissions"),
