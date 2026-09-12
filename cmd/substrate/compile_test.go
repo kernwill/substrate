@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/kernwill/substrate/internal/goldentest"
@@ -82,4 +83,48 @@ func runCompileFixture(t *testing.T, fixtureDir string) map[string][]byte {
 		t.Fatalf("walk --out dir %s: %v", outDir, err)
 	}
 	return artifacts
+}
+
+// TestCompileLeavesNoTempDirectoryOnSuccess guards the atomic-write fix:
+// runCompile writes to a "<out>.tmp" sibling and renames it into place at
+// the very end (see runCompile's own doc comment), and that sibling must
+// never survive a successful run.
+func TestCompileLeavesNoTempDirectoryOnSuccess(t *testing.T) {
+	outDir := t.TempDir()
+	out := filepath.Join(outDir, "out")
+
+	var stdout, stderr bytes.Buffer
+	code := runCompile([]string{"--source", "../../testdata/fixtures/minimal", "--out", out}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("runCompile exit code = %d, want 0; stderr: %s", code, stderr.String())
+	}
+	if _, err := os.Stat(out + ".tmp"); !os.IsNotExist(err) {
+		t.Errorf("out+\".tmp\" = %v, want it gone after a successful run", err)
+	}
+	if _, err := os.Stat(out); err != nil {
+		t.Errorf("out: %v, want it to exist after a successful run", err)
+	}
+}
+
+// TestCompileReportsMissingConventionDirectories confirms the compile
+// summary distinguishes "this source has no Kubernetes manifests or
+// GitHub Actions workflows at all" from "we looked in k8s/ and
+// .github/workflows/ and neither exists" - collapsing both into the same
+// "0 resource(s)" line was the gap resourceCount fixes.
+func TestCompileReportsMissingConventionDirectories(t *testing.T) {
+	source := t.TempDir() // no k8s/, no .github/workflows/, no *.tf either
+	out := filepath.Join(t.TempDir(), "out")
+
+	var stdout, stderr bytes.Buffer
+	code := runCompile([]string{"--source", source, "--out", out}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("runCompile exit code = %d, want 0; stderr: %s", code, stderr.String())
+	}
+	got := stdout.String()
+	if !strings.Contains(got, "k8s not found") {
+		t.Errorf("stdout = %q, want it to name the missing k8s directory", got)
+	}
+	if !strings.Contains(got, "workflows not found") {
+		t.Errorf("stdout = %q, want it to name the missing .github/workflows directory", got)
+	}
 }

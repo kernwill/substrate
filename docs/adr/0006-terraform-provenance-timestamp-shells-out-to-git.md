@@ -72,21 +72,44 @@ checkout, on every machine, forever - matching NFR-3's actual intent
 rather than technically satisfying "deterministic within one machine."
 
 Negative. `substrate compile` (and any other command touching Terraform
-parsing) requires `git` on PATH and requires the parsed files to be
-committed. An uncommitted, in-progress `.tf` file - a very normal state
-during real development - cannot be compiled yet. This is a real
-workflow friction, not just a technicality, and is worth revisiting if
-it proves painful in practice (e.g. falling back to a clearly-labeled
-"uncommitted" provenance state rather than a hard error, if FR-2's
-design evolves to want that).
+parsing) requires `git` on PATH and requires the parsed files to have at
+least one commit. A file that has never been committed at all correctly
+gets a loud error (`CommitTime`'s own "has no git commit history" case).
 
-Unproven. Whether this decision needs to generalize: the same fact
-question - what timestamp does a Kubernetes manifest or a GitHub
-Actions workflow file get? - will recur for every other FR-2 front-end
-source. This ADR's reasoning (git commit time, shell out, fail loud
-otherwise) should extend cleanly to both, since they're the same
-"static file in a git-tracked IaC directory" shape as Terraform, but
-that hasn't been exercised yet.
+But a file that was committed once and then edited locally without a new
+commit does not: `git log -1 -- <file>` only ever answers "when was this
+file's history last touched," which says nothing about whether the
+working tree currently matches that commit. `Parse` reads the file's
+*current* on-disk content (`os.Open`/`os.ReadFile`) but stamps it with
+that stale, pre-edit commit timestamp - silently, with no error and no
+distinguishing signal anywhere in the resulting fact. This ADR's original
+consequences section described the friction case ("an uncommitted,
+in-progress .tf file... cannot be compiled yet") as if it were a hard
+stop; it is not, for exactly the files where the mismatch is real - only
+a file with *zero* commits ever fails loudly. That gap was found by a
+`/code-review` pass against all three frontends now sharing this
+package, not caught when this ADR was first written against Terraform
+alone.
+
+This remains a real workflow friction worth revisiting (e.g. a
+clearly-labeled "uncommitted" provenance state instead of silently
+reusing the last commit's timestamp), but the revisit should fix the
+silent mismatch specifically, not just the already-loud all-zero-commits
+case.
+
+Resolved. The "unproven" generalization question this ADR originally
+posed - whether Kubernetes manifests and GitHub Actions workflow files
+should get the same git-commit-time treatment as Terraform - is resolved
+by FR-2.4/2.5 and FR-2.6's own landings:
+`internal/frontend/kubernetes.Parse` and
+`internal/frontend/githubactions.Parse` both call `vcs.CommitTime`
+exactly as Terraform's `Parse` does (see `internal/frontend/vcs`'s own
+package doc comment, which now states this directly: "every frontend
+collector that reads static files should use this package rather than
+reinvent the same tradeoff file by file"). The silent stale-timestamp gap
+above is therefore not a Terraform-specific loose end; it applies
+identically to all three frontends this project has today, and to any
+future one built on `vcs.CommitTime`.
 
 If this proves to be a recurring source of friction (customers whose
 CI checks out a shallow or detached clone where `git log` behaves

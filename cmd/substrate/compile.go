@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -55,6 +56,14 @@ import (
 // Emitting FedRAMP artifacts from the evidence graph (internal/backends,
 // FR-6) remains unimplemented.
 //
+// Nothing is written to --out until every parse, map, and validate step
+// above has succeeded: writing happens against a "--out.tmp" sibling
+// directory that is only renamed into place at --out once, at the very
+// end. A failure partway through a run can therefore never leave --out
+// holding some frontends' raw JSON with no matching ir/ output, or a
+// stale ir/ next to fresh per-frontend JSON from a run that didn't
+// actually finish.
+//
 // testdata/fixtures/minimal's own expected/ output reflects whatever
 // this function currently does; regenerate it deliberately
 // (SUBSTRATE_UPDATE_GOLDEN=1) and review the diff every time this
@@ -77,36 +86,22 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
+	k8sDir := filepath.Join(*source, "k8s")
+	ghaDir := filepath.Join(*source, ".github", "workflows")
+
 	tfGraph, err := terraform.Parse(*source)
 	if err != nil {
 		fmt.Fprintf(stderr, "substrate compile: parse terraform: %v\n", err)
 		return 2
 	}
-	k8sGraph, err := kubernetes.Parse(filepath.Join(*source, "k8s"))
+	k8sGraph, err := kubernetes.Parse(k8sDir)
 	if err != nil {
 		fmt.Fprintf(stderr, "substrate compile: parse kubernetes: %v\n", err)
 		return 2
 	}
-	ghaGraph, err := githubactions.Parse(filepath.Join(*source, ".github", "workflows"))
+	ghaGraph, err := githubactions.Parse(ghaDir)
 	if err != nil {
 		fmt.Fprintf(stderr, "substrate compile: parse github actions: %v\n", err)
-		return 2
-	}
-
-	if err := os.MkdirAll(*out, 0o755); err != nil {
-		fmt.Fprintf(stderr, "substrate compile: create output directory %s: %v\n", *out, err)
-		return 2
-	}
-	if err := writeArtifact(*out, "terraform.json", tfGraph); err != nil {
-		fmt.Fprintf(stderr, "substrate compile: %v\n", err)
-		return 2
-	}
-	if err := writeArtifact(*out, "kubernetes.json", k8sGraph); err != nil {
-		fmt.Fprintf(stderr, "substrate compile: %v\n", err)
-		return 2
-	}
-	if err := writeArtifact(*out, "github_actions.json", ghaGraph); err != nil {
-		fmt.Fprintf(stderr, "substrate compile: %v\n", err)
 		return 2
 	}
 
@@ -137,7 +132,45 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	irDir := filepath.Join(*out, "ir")
+	// Every parse, map, and validate step above must succeed before any
+	// of it touches --out. Writing runs entirely against a sibling
+	// ".tmp" directory and is only made visible at *out by a single
+	// rename at the very end - so a failure past this point (which
+	// should only ever be an I/O error, since every step that can find
+	// something wrong with the input already has) can never leave *out
+	// holding a partial mix of some frontends' raw JSON and no matching
+	// ir/ output, or a stale ir/ from a prior run sitting next to fresh
+	// per-frontend JSON from this one.
+	tmpOut := *out + ".tmp"
+	if err := os.RemoveAll(tmpOut); err != nil {
+		fmt.Fprintf(stderr, "substrate compile: clear stale %s: %v\n", tmpOut, err)
+		return 2
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			os.RemoveAll(tmpOut)
+		}
+	}()
+
+	if err := os.MkdirAll(tmpOut, 0o755); err != nil {
+		fmt.Fprintf(stderr, "substrate compile: create output directory %s: %v\n", tmpOut, err)
+		return 2
+	}
+	if err := writeArtifact(tmpOut, "terraform.json", tfGraph); err != nil {
+		fmt.Fprintf(stderr, "substrate compile: %v\n", err)
+		return 2
+	}
+	if err := writeArtifact(tmpOut, "kubernetes.json", k8sGraph); err != nil {
+		fmt.Fprintf(stderr, "substrate compile: %v\n", err)
+		return 2
+	}
+	if err := writeArtifact(tmpOut, "github_actions.json", ghaGraph); err != nil {
+		fmt.Fprintf(stderr, "substrate compile: %v\n", err)
+		return 2
+	}
+
+	irDir := filepath.Join(tmpOut, "ir")
 	if err := os.MkdirAll(irDir, 0o755); err != nil {
 		fmt.Fprintf(stderr, "substrate compile: create output directory %s: %v\n", irDir, err)
 		return 2
@@ -151,9 +184,38 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	fmt.Fprintf(stdout, "parsed %d terraform resource(s), %d kubernetes resource(s), and %d github actions workflow(s) from %s; compiled %d evidence node(s) and %d edge(s)\n",
-		len(tfGraph.Resources), len(k8sGraph.Resources), len(ghaGraph.Workflows), *source, len(evidence.Nodes), len(evidence.Edges))
+	if err := os.RemoveAll(*out); err != nil {
+		fmt.Fprintf(stderr, "substrate compile: remove previous %s: %v\n", *out, err)
+		return 2
+	}
+	if err := os.Rename(tmpOut, *out); err != nil {
+		fmt.Fprintf(stderr, "substrate compile: publish %s: %v\n", *out, err)
+		return 2
+	}
+	committed = true
+
+	fmt.Fprintf(stdout, "parsed %d terraform resource(s), %s, and %s from %s; compiled %d evidence node(s) and %d edge(s)\n",
+		len(tfGraph.Resources), resourceCount(k8sDir, len(k8sGraph.Resources), "kubernetes resource"),
+		resourceCount(ghaDir, len(ghaGraph.Workflows), "github actions workflow"), *source, len(evidence.Nodes), len(evidence.Edges))
 	return 0
+}
+
+// resourceCount renders a frontend's parsed count for the summary line,
+// naming the gap when dir doesn't exist at all rather than printing the
+// same "0 <unit>(s)" a directory that exists but is genuinely empty of
+// matching files would also produce. Both the "k8s" and
+// ".github/workflows" conventions are narrow and provisional (see this
+// file's own doc comment above), and a repository that keeps its
+// manifests somewhere else deserves a different message than one that
+// genuinely has none.
+func resourceCount(dir string, count int, unit string) string {
+	if count != 0 {
+		return fmt.Sprintf("%d %s(s)", count, unit)
+	}
+	if _, err := os.Stat(dir); errors.Is(err, os.ErrNotExist) {
+		return fmt.Sprintf("0 %s(s) (%s not found)", unit, dir)
+	}
+	return fmt.Sprintf("0 %s(s)", unit)
 }
 
 // writeJSONLArtifact writes items to <dir>/<name> using write (one of
