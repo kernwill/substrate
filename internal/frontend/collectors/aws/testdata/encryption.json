@@ -1,0 +1,5 @@
+{
+  "alpha": {"algorithm": "aws:kms"},
+  "beta": {"algorithm": "AES256"},
+  "gamma": {"algorithm": "AES256"}
+}

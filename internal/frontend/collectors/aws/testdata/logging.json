@@ -1,0 +1,4 @@
+{
+  "alpha": {"enabled": true, "target_bucket": "alpha-logs"},
+  "beta": {"enabled": false}
+}

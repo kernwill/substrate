@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/kernwill/substrate/internal/frontend/controls"
 	"github.com/kernwill/substrate/internal/ir"
 )
 
@@ -133,7 +134,7 @@ func mapEncryption(r Resource) (ir.Node, bool, error) {
 	return ir.Node{
 		ID:            nodeID(r.Address),
 		ControlFamily: "SC",
-		Controls:      []ir.Control{{Family: "SC", Base: 28, Enhancement: 1}},
+		Controls:      []ir.Control{controls.S3Encryption},
 		Kind:          "s3_bucket_encryption",
 		Attributes:    map[string]string{"sse_algorithm": algorithm},
 		Provenance:    r.Provenance,
@@ -162,7 +163,7 @@ func mapPublicAccessBlock(r Resource) (ir.Node, bool, error) {
 	return ir.Node{
 		ID:            nodeID(r.Address),
 		ControlFamily: "AC",
-		Controls:      []ir.Control{{Family: "AC", Base: 3}},
+		Controls:      []ir.Control{controls.S3PublicAccessBlock},
 		Kind:          "s3_bucket_public_access_block",
 		Attributes:    attrs,
 		Provenance:    r.Provenance,
