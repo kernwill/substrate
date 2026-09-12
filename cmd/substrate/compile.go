@@ -58,11 +58,13 @@ import (
 //
 // Nothing is written to --out until every parse, map, and validate step
 // above has succeeded: writing happens against a "--out.tmp" sibling
-// directory that is only renamed into place at --out once, at the very
-// end. A failure partway through a run can therefore never leave --out
-// holding some frontends' raw JSON with no matching ir/ output, or a
-// stale ir/ next to fresh per-frontend JSON from a run that didn't
-// actually finish.
+// directory, published at --out only at the very end via two back-to-back
+// renames (see the comment where that happens) rather than a delete-then-
+// rename, so even a process kill at the worst possible instant leaves a
+// recoverable "--out.old" behind instead of --out missing outright. A
+// failure partway through a run can therefore never leave --out holding
+// some frontends' raw JSON with no matching ir/ output, or a stale ir/
+// next to fresh per-frontend JSON from a run that didn't actually finish.
 //
 // testdata/fixtures/minimal's own expected/ output reflects whatever
 // this function currently does; regenerate it deliberately
@@ -184,8 +186,31 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	if err := os.RemoveAll(*out); err != nil {
-		fmt.Fprintf(stderr, "substrate compile: remove previous %s: %v\n", *out, err)
+	// Publish tmpOut at *out with two back-to-back renames rather than
+	// RemoveAll(*out) followed by Rename(tmpOut, *out): os.Rename cannot
+	// itself atomically replace an existing non-empty directory (POSIX
+	// rename(2) requires the destination directory to be empty), so
+	// deleting first was the only way to make Rename succeed - but a
+	// process killed between that delete and the rename left *out
+	// missing entirely, which is worse than the partial-mix problem this
+	// function exists to prevent: no artifact where a stale-but-complete
+	// one used to be. Renaming *out out of the way first shrinks that
+	// unsafe window from "however long a recursive delete takes" to the
+	// gap between two near-instant rename() calls, and - if that exact
+	// window is still hit - leaves the previous run's complete output
+	// recoverable at backupOut instead of gone.
+	backupOut := *out + ".old"
+	if _, err := os.Stat(*out); err == nil {
+		if err := os.RemoveAll(backupOut); err != nil {
+			fmt.Fprintf(stderr, "substrate compile: clear stale %s: %v\n", backupOut, err)
+			return 2
+		}
+		if err := os.Rename(*out, backupOut); err != nil {
+			fmt.Fprintf(stderr, "substrate compile: move previous %s aside: %v\n", *out, err)
+			return 2
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		fmt.Fprintf(stderr, "substrate compile: stat %s: %v\n", *out, err)
 		return 2
 	}
 	if err := os.Rename(tmpOut, *out); err != nil {
@@ -193,6 +218,12 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	committed = true
+	if err := os.RemoveAll(backupOut); err != nil {
+		// Not fatal: *out is already correct - a leftover backupOut is
+		// disk space, not a correctness problem - but still worth
+		// telling the operator so it doesn't silently accumulate.
+		fmt.Fprintf(stderr, "substrate compile: warning: could not remove backup %s: %v\n", backupOut, err)
+	}
 
 	fmt.Fprintf(stdout, "parsed %d terraform resource(s), %s, and %s from %s; compiled %d evidence node(s) and %d edge(s)\n",
 		len(tfGraph.Resources), resourceCount(k8sDir, len(k8sGraph.Resources), "kubernetes resource"),
@@ -228,9 +259,17 @@ func writeJSONLArtifact[T any](dir, name string, items []T, write func(io.Writer
 	if err != nil {
 		return fmt.Errorf("create %s: %w", path, err)
 	}
-	defer f.Close()
 	if err := write(f, items); err != nil {
+		f.Close()
 		return fmt.Errorf("write %s: %w", path, err)
+	}
+	// Checked, not deferred-and-ignored: a full disk (or a network-mounted
+	// --out.tmp) can fail at close time, after buffered Write calls have
+	// already returned success - an error here is the only place that
+	// surfaces, and this artifact is about to be renamed into place as if
+	// it were complete.
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("close %s: %w", path, err)
 	}
 	return nil
 }
@@ -242,9 +281,12 @@ func writeArtifact(outDir, name string, v any) error {
 	if err != nil {
 		return fmt.Errorf("create %s: %w", path, err)
 	}
-	defer f.Close()
 	if err := writeJSON(f, v); err != nil {
+		f.Close()
 		return fmt.Errorf("write %s: %w", path, err)
+	}
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("close %s: %w", path, err)
 	}
 	return nil
 }

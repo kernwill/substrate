@@ -106,6 +106,37 @@ func TestCompileLeavesNoTempDirectoryOnSuccess(t *testing.T) {
 	}
 }
 
+// TestCompileRerunLeavesNoBackupDirectory exercises the swap path
+// TestCompileLeavesNoTempDirectoryOnSuccess doesn't: republishing over an
+// --out that already exists (from this function's own prior run, the
+// common case in a re-triggered CI job) takes the "*out exists, rename it
+// aside to *out.old first" branch rather than the empty-destination one.
+func TestCompileRerunLeavesNoBackupDirectory(t *testing.T) {
+	outDir := t.TempDir()
+	out := filepath.Join(outDir, "out")
+
+	var stdout, stderr bytes.Buffer
+	if code := runCompile([]string{"--source", "../../testdata/fixtures/minimal", "--out", out}, &stdout, &stderr); code != 0 {
+		t.Fatalf("first run exit code = %d, want 0; stderr: %s", code, stderr.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	code := runCompile([]string{"--source", "../../testdata/fixtures/minimal", "--out", out}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("second run exit code = %d, want 0; stderr: %s", code, stderr.String())
+	}
+	if _, err := os.Stat(out + ".old"); !os.IsNotExist(err) {
+		t.Errorf("out+\".old\" = %v, want it gone after a successful rerun", err)
+	}
+	if _, err := os.Stat(out + ".tmp"); !os.IsNotExist(err) {
+		t.Errorf("out+\".tmp\" = %v, want it gone after a successful rerun", err)
+	}
+	if _, err := os.Stat(filepath.Join(out, "ir", "nodes.jsonl")); err != nil {
+		t.Errorf("out/ir/nodes.jsonl: %v, want it present after a successful rerun", err)
+	}
+}
+
 // TestCompileReportsMissingConventionDirectories confirms the compile
 // summary distinguishes "this source has no Kubernetes manifests or
 // GitHub Actions workflows at all" from "we looked in k8s/ and
