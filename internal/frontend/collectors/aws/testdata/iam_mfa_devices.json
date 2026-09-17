@@ -1,0 +1,7 @@
+{
+  "alice": {"count": 2},
+  "bob": {"count": 0},
+  "carol": {"error": "access denied"},
+  "dave": {"count": 0},
+  "erin": {"count": 0}
+}

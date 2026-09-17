@@ -1,0 +1,7 @@
+{
+  "alice": {"keys": [{"active": true, "create_date": "2025-01-01T00:00:00Z"}]},
+  "bob": {"keys": [{"active": true, "create_date": "2025-06-01T00:00:00Z"}, {"active": false, "create_date": "2020-01-01T00:00:00Z"}]},
+  "carol": {"error": "throttled"},
+  "dave": {"keys": []},
+  "erin": {"keys": []}
+}

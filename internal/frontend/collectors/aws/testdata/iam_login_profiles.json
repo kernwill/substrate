@@ -1,0 +1,7 @@
+{
+  "alice": {"has_profile": true},
+  "bob": {"has_profile": true},
+  "carol": {"has_profile": false},
+  "dave": {"has_profile": false},
+  "erin": {"error": "throttled"}
+}

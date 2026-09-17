@@ -16,6 +16,22 @@
         "s3:GetBucketLogging"
       ],
       "Resource": ["arn:*:s3:::*"]
+    },
+    {
+      "Sid": "SubstrateIAMCollectorAccountLevel",
+      "Effect": "Allow",
+      "Action": ["iam:ListUsers"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "SubstrateIAMCollectorUserLevel",
+      "Effect": "Allow",
+      "Action": [
+        "iam:GetLoginProfile",
+        "iam:ListMFADevices",
+        "iam:ListAccessKeys"
+      ],
+      "Resource": ["arn:*:iam::*:user/*"]
     }
   ]
 }

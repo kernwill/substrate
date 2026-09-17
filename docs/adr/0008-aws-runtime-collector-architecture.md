@@ -142,6 +142,30 @@ VPC, Config/GuardDuty/Security Hub) and to Okta with minimal new design
 work - each is "another narrow interface, another fixture set, another
 `ir.go` reusing or extending existing control assignments."
 
+**Confirmed by collector two (IAM), added shortly after.** `IAMAPI` /
+`CollectIAM` / `IAMToIR` needed no new architectural decisions: same
+narrow interface, same `testdata/*.json` fixtures, same bounded
+`errgroup` fan-out, same always-record-a-fact
+(`Deterministic`/`Unresolved`) discipline, same incremental policy
+additions to `docs/aws-readonly-policy.json`. Two things generalized out
+of the duplication the second collector created: `observedRecord` /
+`unresolvedRecord` moved to a shared `provenance.go` (each collector
+keeps a thin wrapper fixing its own collector version and locator
+parameter key), and node IDs now go through one `awsNodeID(service,
+resource, aspect)` helper rather than a per-service `fmt.Sprintf`. Both
+were flagged by `/code-review` as duplicated-literal risks of exactly
+the kind `internal/frontend/controls` already exists to prevent.
+
+The IAM collector also surfaced the mirror image of S3's
+`GetPublicAccessBlock` nuance, worth recording because it cuts the other
+way: `GetLoginProfile` returns a `NoSuchEntity` error for a user with no
+console password, and that error IS a resolved "no" - AWS's own API
+contract documents it to mean exactly that, with no second, uncollected
+setting that could override it. So it is recorded as `Deterministic`,
+not `Unresolved`. "An API error means unresolved" is therefore not a
+rule this package can apply blindly; each error shape has to be checked
+against what the service actually documents it to mean.
+
 Negative. `docs/aws-readonly-policy.json` will need a statement added for
 every future collector, in lockstep with the code - a process discipline,
 not something enforced mechanically yet. Nothing checks today that the

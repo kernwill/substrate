@@ -171,24 +171,16 @@ func listBucketNames(ctx context.Context, client S3API) ([]string, error) {
 	return names, nil
 }
 
-func observedRecord(bucket, api string, observedAt time.Time) provenance.Record {
-	return provenance.Record{
-		SourceType:       "aws",
-		Locator:          provenance.Locator{API: api, Parameters: map[string]string{"bucket": bucket}},
-		Timestamp:        observedAt,
-		CollectorVersion: S3CollectorVersion,
-		Basis:            provenance.Observed,
-		Confidence:       provenance.Deterministic,
-	}
+// s3Record and s3UnresolvedRecord are thin wrappers around this
+// package's shared observedRecord/unresolvedRecord (provenance.go),
+// fixing SourceType's "aws" and the "bucket" parameter key so each call
+// site below only names what's actually specific to it.
+func s3Record(bucket, api string, observedAt time.Time) provenance.Record {
+	return observedRecord(S3CollectorVersion, api, map[string]string{"bucket": bucket}, observedAt)
 }
 
-// unresolvedRecord is observedRecord's Confidence=Unresolved counterpart,
-// for when api genuinely could not be answered for bucket.
-func unresolvedRecord(bucket, api, reason string, observedAt time.Time) provenance.Record {
-	r := observedRecord(bucket, api, observedAt)
-	r.Confidence = provenance.Unresolved
-	r.UnresolvedReason = reason
-	return r
+func s3UnresolvedRecord(bucket, api, reason string, observedAt time.Time) provenance.Record {
+	return unresolvedRecord(S3CollectorVersion, api, reason, map[string]string{"bucket": bucket}, observedAt)
 }
 
 // collectBucketEncryption reads bucket's default encryption
@@ -202,18 +194,18 @@ func collectBucketEncryption(ctx context.Context, client S3API, bucket string, o
 	const api = "s3:GetBucketEncryption"
 	out, err := client.GetBucketEncryption(ctx, &s3.GetBucketEncryptionInput{Bucket: &bucket})
 	if err != nil {
-		return &BucketEncryption{Provenance: unresolvedRecord(bucket, api, err.Error(), observedAt)}
+		return &BucketEncryption{Provenance: s3UnresolvedRecord(bucket, api, err.Error(), observedAt)}
 	}
 	if out.ServerSideEncryptionConfiguration == nil || len(out.ServerSideEncryptionConfiguration.Rules) == 0 {
-		return &BucketEncryption{Provenance: unresolvedRecord(bucket, api, "response had no encryption configuration rules", observedAt)}
+		return &BucketEncryption{Provenance: s3UnresolvedRecord(bucket, api, "response had no encryption configuration rules", observedAt)}
 	}
 	rule := out.ServerSideEncryptionConfiguration.Rules[0]
 	if rule.ApplyServerSideEncryptionByDefault == nil {
-		return &BucketEncryption{Provenance: unresolvedRecord(bucket, api, "response rule had no default encryption applied", observedAt)}
+		return &BucketEncryption{Provenance: s3UnresolvedRecord(bucket, api, "response rule had no default encryption applied", observedAt)}
 	}
 	return &BucketEncryption{
 		Algorithm:  string(rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm),
-		Provenance: observedRecord(bucket, api, observedAt),
+		Provenance: s3Record(bucket, api, observedAt),
 	}
 }
 
@@ -240,18 +232,18 @@ func collectBucketPublicAccessBlock(ctx context.Context, client S3API, bucket st
 	const api = "s3:GetPublicAccessBlock"
 	out, err := client.GetPublicAccessBlock(ctx, &s3.GetPublicAccessBlockInput{Bucket: &bucket})
 	if err != nil {
-		return &BucketPublicAccessBlock{Provenance: unresolvedRecord(bucket, api, err.Error(), observedAt)}
+		return &BucketPublicAccessBlock{Provenance: s3UnresolvedRecord(bucket, api, err.Error(), observedAt)}
 	}
 	cfg := out.PublicAccessBlockConfiguration
 	if cfg == nil || cfg.BlockPublicAcls == nil || cfg.BlockPublicPolicy == nil || cfg.IgnorePublicAcls == nil || cfg.RestrictPublicBuckets == nil {
-		return &BucketPublicAccessBlock{Provenance: unresolvedRecord(bucket, api, "response had no complete public access block configuration", observedAt)}
+		return &BucketPublicAccessBlock{Provenance: s3UnresolvedRecord(bucket, api, "response had no complete public access block configuration", observedAt)}
 	}
 	return &BucketPublicAccessBlock{
 		BlockPublicACLs:       *cfg.BlockPublicAcls,
 		BlockPublicPolicy:     *cfg.BlockPublicPolicy,
 		IgnorePublicACLs:      *cfg.IgnorePublicAcls,
 		RestrictPublicBuckets: *cfg.RestrictPublicBuckets,
-		Provenance:            observedRecord(bucket, api, observedAt),
+		Provenance:            s3Record(bucket, api, observedAt),
 	}
 }
 
@@ -265,12 +257,12 @@ func collectBucketLogging(ctx context.Context, client S3API, bucket string, obse
 	const api = "s3:GetBucketLogging"
 	out, err := client.GetBucketLogging(ctx, &s3.GetBucketLoggingInput{Bucket: &bucket})
 	if err != nil {
-		return &BucketLogging{Provenance: unresolvedRecord(bucket, api, err.Error(), observedAt)}
+		return &BucketLogging{Provenance: s3UnresolvedRecord(bucket, api, err.Error(), observedAt)}
 	}
 	if out.LoggingEnabled == nil {
 		return &BucketLogging{
 			Enabled:    false,
-			Provenance: observedRecord(bucket, api, observedAt),
+			Provenance: s3Record(bucket, api, observedAt),
 		}
 	}
 	target := ""
@@ -280,6 +272,6 @@ func collectBucketLogging(ctx context.Context, client S3API, bucket string, obse
 	return &BucketLogging{
 		Enabled:      true,
 		TargetBucket: target,
-		Provenance:   observedRecord(bucket, api, observedAt),
+		Provenance:   s3Record(bucket, api, observedAt),
 	}
 }

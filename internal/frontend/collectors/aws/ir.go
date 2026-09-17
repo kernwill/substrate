@@ -45,8 +45,18 @@ func ToIR(g *S3Graph) (ir.Graph, error) {
 	return out, nil
 }
 
+// awsNodeID builds the "aws:<service>:<resource>#<aspect>" IR node ID
+// every collector in this package uses, so the ID grammar lives in one
+// place rather than being re-spelled per service (s3.go's buckets,
+// iam.go's users, and whatever comes next) - the same
+// one-definition-only reasoning internal/frontend/controls applies to
+// control assignments.
+func awsNodeID(service, resource, aspect string) ir.NodeID {
+	return ir.NodeID(fmt.Sprintf("aws:%s:%s#%s", service, resource, aspect))
+}
+
 func nodeID(bucket, suffix string) ir.NodeID {
-	return ir.NodeID(fmt.Sprintf("aws:s3:%s#%s", bucket, suffix))
+	return awsNodeID("s3", bucket, suffix)
 }
 
 // mapBucketEncryption maps b's Observed encryption algorithm to

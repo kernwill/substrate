@@ -3,6 +3,7 @@ module github.com/kernwill/substrate
 go 1.27
 
 require (
+	github.com/aws/aws-sdk-go-v2/service/iam v1.64.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.113.1
 	github.com/dlclark/regexp2 v1.12.0
 	github.com/hashicorp/hcl/v2 v2.24.0
