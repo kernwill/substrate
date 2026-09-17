@@ -43,10 +43,10 @@ type S3API interface {
 // CLAUDE.md's "absence of evidence is not evidence of compliance" exists
 // to rule out.
 type Bucket struct {
-	Name              string
-	Encryption        *BucketEncryption
-	PublicAccessBlock *BucketPublicAccessBlock
-	Logging           *BucketLogging
+	Name              string                   `json:"name"`
+	Encryption        *BucketEncryption        `json:"encryption"`
+	PublicAccessBlock *BucketPublicAccessBlock `json:"public_access_block"`
+	Logging           *BucketLogging           `json:"logging"`
 }
 
 // BucketEncryption is one bucket's default server-side encryption
@@ -57,8 +57,8 @@ type Bucket struct {
 // recorded, matching that mapper's own scope. Algorithm is meaningful
 // only when Provenance.Confidence is Deterministic.
 type BucketEncryption struct {
-	Algorithm  string
-	Provenance provenance.Record
+	Algorithm  string            `json:"algorithm"`
+	Provenance provenance.Record `json:"provenance"`
 }
 
 // BucketPublicAccessBlock is one bucket's four Block Public Access
@@ -67,26 +67,38 @@ type BucketEncryption struct {
 // four flags are meaningful only when Provenance.Confidence is
 // Deterministic.
 type BucketPublicAccessBlock struct {
-	BlockPublicACLs       bool
-	BlockPublicPolicy     bool
-	IgnorePublicACLs      bool
-	RestrictPublicBuckets bool
-	Provenance            provenance.Record
+	BlockPublicACLs       bool              `json:"block_public_acls"`
+	BlockPublicPolicy     bool              `json:"block_public_policy"`
+	IgnorePublicACLs      bool              `json:"ignore_public_acls"`
+	RestrictPublicBuckets bool              `json:"restrict_public_buckets"`
+	Provenance            provenance.Record `json:"provenance"`
 }
 
 // BucketLogging is whether server access logging is enabled for a
 // bucket, and where to if so. Enabled and TargetBucket are meaningful
 // only when Provenance.Confidence is Deterministic.
+//
+// TargetBucket carries "omitempty" while BucketEncryption's Algorithm
+// (above) deliberately doesn't, even though both are empty strings in
+// their own "nothing resolved" case: the two aren't actually the same
+// shape. Algorithm is empty in exactly one case - Unresolved - and never
+// legitimately empty when Deterministic (a resolved encryption fact
+// always names a real algorithm). TargetBucket is empty in two different
+// cases - Unresolved, or a fully Deterministic fact where Enabled is
+// simply false and there is no target to name - so omitting it when
+// empty avoids implying a target bucket was queried and came back
+// blank. Keep this comment if either field's omitempty ever looks like
+// an oversight rather than a deliberate, per-field call.
 type BucketLogging struct {
-	Enabled      bool
-	TargetBucket string
-	Provenance   provenance.Record
+	Enabled      bool              `json:"enabled"`
+	TargetBucket string            `json:"target_bucket,omitempty"`
+	Provenance   provenance.Record `json:"provenance"`
 }
 
 // S3Graph is every bucket this collector found in one account/region
 // pass, per FR-3.5.
 type S3Graph struct {
-	Buckets []Bucket
+	Buckets []Bucket `json:"buckets"`
 }
 
 // CollectS3 lists every bucket visible to client and reads its

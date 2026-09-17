@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/kernwill/substrate/internal/backends/fedramp20x"
+	awscollectors "github.com/kernwill/substrate/internal/frontend/collectors/aws"
 	"github.com/kernwill/substrate/internal/frontend/githubactions"
 	"github.com/kernwill/substrate/internal/frontend/kubernetes"
 	"github.com/kernwill/substrate/internal/frontend/terraform"
@@ -57,6 +58,19 @@ import (
 // or field with no reviewed entry produces no node, never a guess - see
 // each ToIR's own doc comment.
 //
+// --runtime <dir>, if given, is a directory previously written by
+// "substrate collect --out <dir>" (collect.go): this command reads
+// <runtime>/aws_s3.json and <runtime>/aws_iam.json back in, maps them
+// through the same awscollectors.ToIR/IAMToIR this package's own
+// unit tests exercise, and merges their nodes into the evidence graph
+// alongside the three static frontends' - the Observed half of FR-4.2,
+// next to everything above's Declared half. Omitting --runtime is not a
+// degraded mode; it is compile's default, and always has been - a
+// customer's CI-triggered compile has no need to touch AWS at all
+// unless they specifically want Observed evidence folded in. See
+// docs/adr/0009 for why collection is its own command rather than a
+// flag that makes compile itself reach out to AWS.
+//
 // The merged evidence graph is then scored against the vendored FedRAMP
 // Consolidated Rules dataset (internal/rules.Default) by
 // internal/backends/fedramp20x.Evaluate (FR-6.1), written to
@@ -90,8 +104,9 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	source := fs.String("source", "", "directory containing Terraform, Kubernetes manifests, and CI configuration to compile")
 	out := fs.String("out", "", "directory to write compiled artifacts to")
+	runtime := fs.String("runtime", "", "optional: directory previously written by 'substrate collect --out <dir>', to merge Observed runtime evidence in alongside the static frontends")
 	fs.Usage = func() {
-		fmt.Fprintln(stderr, "usage: substrate compile --source <dir> --out <dir>")
+		fmt.Fprintln(stderr, "usage: substrate compile --source <dir> --out <dir> [--runtime <dir>]")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
@@ -143,6 +158,39 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 	evidence.Edges = append(evidence.Edges, tfIR.Edges...)
 	evidence.Edges = append(evidence.Edges, k8sIR.Edges...)
 	evidence.Edges = append(evidence.Edges, ghaIR.Edges...)
+
+	// runtimeSummary is built entirely inside this block, not from
+	// variables hoisted above it: a zero bucket/user count and "runtime
+	// ingestion never ran at all" must never look the same to a reader
+	// skimming past the declaration site.
+	runtimeSummary := ""
+	if *runtime != "" {
+		s3Graph, err := readArtifact[awscollectors.S3Graph](filepath.Join(*runtime, awsS3ArtifactName))
+		if err != nil {
+			fmt.Fprintf(stderr, "substrate compile: read runtime evidence: %v\n", err)
+			return 2
+		}
+		iamGraph, err := readArtifact[awscollectors.IAMGraph](filepath.Join(*runtime, awsIAMArtifactName))
+		if err != nil {
+			fmt.Fprintf(stderr, "substrate compile: read runtime evidence: %v\n", err)
+			return 2
+		}
+		s3IR, err := awscollectors.ToIR(s3Graph)
+		if err != nil {
+			fmt.Fprintf(stderr, "substrate compile: map aws s3 to evidence graph: %v\n", err)
+			return 2
+		}
+		iamIR, err := awscollectors.IAMToIR(iamGraph)
+		if err != nil {
+			fmt.Fprintf(stderr, "substrate compile: map aws iam to evidence graph: %v\n", err)
+			return 2
+		}
+		evidence.Nodes = append(evidence.Nodes, s3IR.Nodes...)
+		evidence.Nodes = append(evidence.Nodes, iamIR.Nodes...)
+		runtimeSummary = fmt.Sprintf("; ingested runtime evidence for %d s3 bucket(s) and %d iam user(s) from %s",
+			len(s3Graph.Buckets), len(iamGraph.Users), *runtime)
+	}
+
 	if err := evidence.Validate(); err != nil {
 		fmt.Fprintf(stderr, "substrate compile: evidence graph: %v\n", err)
 		return 2
@@ -228,9 +276,9 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "substrate compile: warning: %s\n", warning)
 	}
 
-	fmt.Fprintf(stdout, "parsed %d terraform resource(s), %s, and %s from %s; compiled %d evidence node(s) and %d edge(s); evaluated %d KSI indicator(s): %s\n",
+	fmt.Fprintf(stdout, "parsed %d terraform resource(s), %s, and %s from %s%s; compiled %d evidence node(s) and %d edge(s); evaluated %d KSI indicator(s): %s\n",
 		len(tfGraph.Resources), resourceCount(k8sDir, len(k8sGraph.Resources), "kubernetes resource"),
-		resourceCount(ghaDir, len(ghaGraph.Workflows), "github actions workflow"), *source, len(evidence.Nodes), len(evidence.Edges),
+		resourceCount(ghaDir, len(ghaGraph.Workflows), "github actions workflow"), *source, runtimeSummary, len(evidence.Nodes), len(evidence.Edges),
 		len(ksiResults), statusTally(ksiResults))
 	return 0
 }

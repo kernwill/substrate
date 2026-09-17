@@ -9,9 +9,12 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kernwill/substrate/internal/backends/fedramp20x"
+	awscollectors "github.com/kernwill/substrate/internal/frontend/collectors/aws"
 	"github.com/kernwill/substrate/internal/goldentest"
+	"github.com/kernwill/substrate/internal/provenance"
 	"github.com/kernwill/substrate/internal/rules"
 )
 
@@ -137,6 +140,99 @@ func TestCompileWritesKSIResults(t *testing.T) {
 
 	if !strings.Contains(stdout.String(), "evaluated") || !strings.Contains(stdout.String(), "KSI indicator") {
 		t.Errorf("stdout = %q, want a KSI evaluation summary", stdout.String())
+	}
+}
+
+// TestCompileIngestsRuntimeEvidence exercises --runtime end to end:
+// collect.go's own writeCollectOutput builds a real "collect" output
+// directory (rather than hand-writing aws_s3.json/aws_iam.json, so this
+// test also stays honest if that format ever changes), and runCompile
+// is pointed at it via --runtime. The resulting evidence graph must
+// contain the AWS-mapped node the synthetic bucket's resolved encryption
+// fact produces, merged in alongside the three static frontends' - and
+// omitting --runtime (the default, exercised by every other test in
+// this file and by TestGoldenCompile) must produce no such node at all.
+func TestCompileIngestsRuntimeEvidence(t *testing.T) {
+	runtimeDir := filepath.Join(t.TempDir(), "runtime")
+	s3Graph := &awscollectors.S3Graph{Buckets: []awscollectors.Bucket{{
+		Name: "runtime-evidence-bucket",
+		Encryption: &awscollectors.BucketEncryption{
+			Algorithm: "aws:kms",
+			Provenance: provenance.Record{
+				SourceType:       "aws",
+				Locator:          provenance.Locator{API: "s3:GetBucketEncryption", Parameters: map[string]string{"bucket": "runtime-evidence-bucket"}},
+				Timestamp:        time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+				CollectorVersion: awscollectors.S3CollectorVersion,
+				Basis:            provenance.Observed,
+				Confidence:       provenance.Deterministic,
+			},
+		},
+	}}}
+	iamGraph := &awscollectors.IAMGraph{}
+	if _, err := writeCollectOutput(runtimeDir, s3Graph, iamGraph); err != nil {
+		t.Fatalf("writeCollectOutput: %v", err)
+	}
+
+	out := filepath.Join(t.TempDir(), "out")
+	var stdout, stderr bytes.Buffer
+	code := runCompile([]string{"--source", "../../testdata/fixtures/minimal", "--out", out, "--runtime", runtimeDir}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("runCompile exit code = %d, want 0; stderr: %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "ingested runtime evidence for 1 s3 bucket(s) and 0 iam user(s)") {
+		t.Errorf("stdout = %q, want it to mention the ingested runtime evidence counts", stdout.String())
+	}
+
+	nodesRaw, err := os.ReadFile(filepath.Join(out, "ir", "nodes.jsonl"))
+	if err != nil {
+		t.Fatalf("read nodes.jsonl: %v", err)
+	}
+	if !strings.Contains(string(nodesRaw), "runtime-evidence-bucket") {
+		t.Errorf("nodes.jsonl does not mention runtime-evidence-bucket; --runtime evidence was not merged into the graph")
+	}
+}
+
+// TestCompileOmitsRuntimeEvidenceByDefault confirms that not passing
+// --runtime - compile's default, unchanged behavior - produces no AWS
+// nodes in the evidence graph at all, even though the minimal fixture's
+// own static frontends produce plenty of other nodes.
+func TestCompileOmitsRuntimeEvidenceByDefault(t *testing.T) {
+	out := filepath.Join(t.TempDir(), "out")
+	var stdout, stderr bytes.Buffer
+	code := runCompile([]string{"--source", "../../testdata/fixtures/minimal", "--out", out}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("runCompile exit code = %d, want 0; stderr: %s", code, stderr.String())
+	}
+	if strings.Contains(stdout.String(), "ingested runtime evidence") {
+		t.Errorf("stdout = %q, want no mention of runtime evidence when --runtime is omitted", stdout.String())
+	}
+	nodesRaw, err := os.ReadFile(filepath.Join(out, "ir", "nodes.jsonl"))
+	if err != nil {
+		t.Fatalf("read nodes.jsonl: %v", err)
+	}
+	// Match the node ID prefix specifically ("id":"aws:...), not a bare
+	// "aws:" substring - the minimal fixture's own Terraform data
+	// legitimately contains the unrelated string "aws:kms" as an
+	// sse_algorithm attribute value, which a looser substring check
+	// would false-positive on.
+	if strings.Contains(string(nodesRaw), `"id":"aws:`) {
+		t.Errorf("nodes.jsonl contains an aws: node with no --runtime given")
+	}
+}
+
+// TestCompileRuntimeMissingFileFailsLoudly confirms a --runtime
+// directory that exists but is missing one of collect's two artifacts
+// is a real, loud error - never silently treated as "nothing collected."
+func TestCompileRuntimeMissingFileFailsLoudly(t *testing.T) {
+	runtimeDir := t.TempDir() // exists, but empty - no aws_s3.json/aws_iam.json
+	out := filepath.Join(t.TempDir(), "out")
+	var stdout, stderr bytes.Buffer
+	code := runCompile([]string{"--source", "../../testdata/fixtures/minimal", "--out", out, "--runtime", runtimeDir}, &stdout, &stderr)
+	if code != 2 {
+		t.Fatalf("exit code = %d, want 2; stderr: %s", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), awsS3ArtifactName) {
+		t.Errorf("stderr = %q, want it to name the missing file", stderr.String())
 	}
 }
 

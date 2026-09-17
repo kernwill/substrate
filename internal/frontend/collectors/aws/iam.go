@@ -40,10 +40,10 @@ type IAMAPI interface {
 // and evaluating role trust policies and attached permissions is a
 // substantially different, larger problem worth its own collector.
 type IAMUser struct {
-	Name            string
-	ConsolePassword *ConsolePassword
-	MFADevices      *MFADevices
-	AccessKeys      *AccessKeys
+	Name            string           `json:"name"`
+	ConsolePassword *ConsolePassword `json:"console_password"`
+	MFADevices      *MFADevices      `json:"mfa_devices"`
+	AccessKeys      *AccessKeys      `json:"access_keys"`
 }
 
 // ConsolePassword is whether a user has ever had a console login
@@ -53,8 +53,8 @@ type IAMUser struct {
 // AWS's own API contract documents it to mean, not an ambiguous partial
 // signal that depends on some other, uncollected setting.
 type ConsolePassword struct {
-	Enabled    bool
-	Provenance provenance.Record
+	Enabled    bool              `json:"enabled"`
+	Provenance provenance.Record `json:"provenance"`
 }
 
 // MFADevices is how many MFA devices a user has enrolled. Enrollment (a
@@ -63,8 +63,8 @@ type ConsolePassword struct {
 // with (ConsolePassword), which is exactly the kind of multi-field
 // judgment a backend predicate makes, not this collector.
 type MFADevices struct {
-	Count      int
-	Provenance provenance.Record
+	Count      int               `json:"count"`
+	Provenance provenance.Record `json:"provenance"`
 }
 
 // AccessKeys is one user's access keys and their ages as of when this
@@ -74,21 +74,21 @@ type MFADevices struct {
 // the resolved/unresolved signal lives on this wrapping struct's own
 // Provenance rather than being inferred from Keys being empty.
 type AccessKeys struct {
-	Keys       []AccessKey
-	Provenance provenance.Record
+	Keys       []AccessKey       `json:"keys"`
+	Provenance provenance.Record `json:"provenance"`
 }
 
 // AccessKey is one access key's status and age, in days, as of the
 // collector's observation time.
 type AccessKey struct {
-	Active  bool
-	AgeDays int
+	Active  bool `json:"active"`
+	AgeDays int  `json:"age_days"`
 }
 
 // IAMGraph is every IAM user this collector found in one account pass,
 // per FR-3.1.
 type IAMGraph struct {
-	Users []IAMUser
+	Users []IAMUser `json:"users"`
 }
 
 // CollectIAM lists every IAM user visible to client and reads their
