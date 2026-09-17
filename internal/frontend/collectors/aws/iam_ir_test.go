@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/kernwill/substrate/internal/ir"
+	"github.com/kernwill/substrate/internal/provenance"
 )
 
 func TestIAMToIR(t *testing.T) {
@@ -28,10 +29,17 @@ func TestIAMToIR(t *testing.T) {
 		byID[n.ID] = n
 	}
 
-	// alice, bob, dave, erin each resolve both facts (2 nodes apiece);
-	// carol's MFA and access-key calls both error, so she contributes none.
-	if len(irGraph.Nodes) != 8 {
-		t.Fatalf("got %d nodes, want 8 (4 users x 2 facts; carol is fully unresolved)", len(irGraph.Nodes))
+	// alice, bob, dave each resolve all three facts (3 nodes apiece).
+	// carol's MFA and access-key calls both error, but her console
+	// login profile call resolves to a real "no" (NoSuchEntity, per
+	// GetLoginProfile's own documented contract - see
+	// collectConsolePassword's doc comment), so she contributes exactly
+	// that one node. erin's console call itself errors (simulated
+	// throttling, not NoSuchEntity), so she contributes her two
+	// resolved facts (MFA, access keys) but no console node.
+	// 3+3+1+3+2 = 12.
+	if len(irGraph.Nodes) != 12 {
+		t.Fatalf("got %d nodes, want 12", len(irGraph.Nodes))
 	}
 
 	mfa, ok := byID[iamNodeID("alice", "mfa-devices")]
@@ -112,32 +120,74 @@ func TestIAMToIR(t *testing.T) {
 	if _, ok := byID[iamNodeID("carol", "access-keys")]; ok {
 		t.Error("carol has an access-keys node, want none (the API call failed - unresolved, never guessed)")
 	}
+
+	aliceConsole, ok := byID[iamNodeID("alice", "console-password")]
+	if !ok {
+		t.Fatal("no alice console-password node")
+	}
+	if aliceConsole.ControlFamily != "IA" || len(aliceConsole.Controls) != 1 || aliceConsole.Controls[0] != (ir.Control{Family: "IA", Base: 2}) {
+		t.Errorf("alice console-password control = %+v/%+v, want IA/IA-2 (base, same as MFA)", aliceConsole.ControlFamily, aliceConsole.Controls)
+	}
+	if got, want := aliceConsole.Attributes["console_password_enabled"], "true"; got != want {
+		t.Errorf("alice console_password_enabled = %q, want %q", got, want)
+	}
+
+	// carol has no MFA or access-key node (both calls failed), but her
+	// console login profile call resolved to a real, documented "no" -
+	// GetLoginProfile's NoSuchEntity error IS the resolved answer, not
+	// an unresolved one (see collectConsolePassword). That resolved
+	// "false" must still produce a node even though her other two
+	// facts are entirely missing.
+	carolConsole, ok := byID[iamNodeID("carol", "console-password")]
+	if !ok {
+		t.Fatal("no carol console-password node - NoSuchEntity is a resolved 'no', not an unresolved outcome, and must produce a node even though carol's other two facts failed")
+	}
+	if got, want := carolConsole.Attributes["console_password_enabled"], "false"; got != want {
+		t.Errorf("carol console_password_enabled = %q, want %q", got, want)
+	}
+
+	// erin's console login profile call itself failed (simulated
+	// throttling, not NoSuchEntity - see testdata/iam_login_profiles.json),
+	// so unlike carol she must have no console-password node at all,
+	// even though her MFA and access-key facts both resolved fine.
+	if _, ok := byID[iamNodeID("erin", "console-password")]; ok {
+		t.Error("erin has a console-password node, want none (the underlying API call failed with a non-NoSuchEntity error - unresolved, never guessed)")
+	}
 }
 
-// TestIAMToIRDoesNotMapConsolePassword pins the deliberate gap
-// IAMToIR's doc comment describes: console-password state is collected
-// but has no reviewed control assignment yet, so it must not reach the
-// evidence graph. If someone later maps it, this test should be updated
-// deliberately alongside that decision, not deleted to make it pass.
-func TestIAMToIRDoesNotMapConsolePassword(t *testing.T) {
-	client := loadFakeIAM(t)
-	graph, err := CollectIAM(context.Background(), client, testObservedAt)
-	if err != nil {
-		t.Fatalf("CollectIAM: %v", err)
+// TestMapUserAccessKeysReportsNegativeAgeWithoutClamping is a
+// regression test: mapUserAccessKeys used to seed its running maximum
+// age at 0 and only overwrite it when a later key's AgeDays was
+// strictly greater, so a single active key with a negative AgeDays
+// (clock skew between this host and AWS, or a key created in the same
+// instant observedAt was captured) was silently clamped to "0" - read
+// as "freshly rotated" - instead of surfacing the actual, anomalous
+// negative value.
+func TestMapUserAccessKeysReportsNegativeAgeWithoutClamping(t *testing.T) {
+	u := IAMUser{
+		Name: "skewed",
+		AccessKeys: &AccessKeys{
+			Keys:       []AccessKey{{Active: true, AgeDays: -5}},
+			Provenance: testProvenance(),
+		},
 	}
-	irGraph, err := IAMToIR(graph)
-	if err != nil {
-		t.Fatalf("IAMToIR: %v", err)
+	node, ok := mapUserAccessKeys(u)
+	if !ok {
+		t.Fatal("mapUserAccessKeys: got false, want true")
 	}
-	for _, n := range irGraph.Nodes {
-		if n.Kind == "iam_user_console_password" {
-			t.Errorf("node %s maps console-password state, which has no reviewed control assignment yet", n.ID)
-		}
-		for k := range n.Attributes {
-			if k == "console_password_enabled" {
-				t.Errorf("node %s carries a console_password_enabled attribute, which has no reviewed control assignment yet", n.ID)
-			}
-		}
+	if got, want := node.Attributes["oldest_active_key_age_days"], "-5"; got != want {
+		t.Errorf("oldest_active_key_age_days = %q, want %q (the real negative age, not clamped to 0)", got, want)
+	}
+}
+
+func testProvenance() provenance.Record {
+	return provenance.Record{
+		SourceType:       "aws",
+		Locator:          provenance.Locator{API: "iam:ListAccessKeys", Parameters: map[string]string{"user": "skewed"}},
+		Timestamp:        testObservedAt,
+		CollectorVersion: IAMCollectorVersion,
+		Basis:            provenance.Observed,
+		Confidence:       provenance.Deterministic,
 	}
 }
 

@@ -2,9 +2,7 @@ package aws
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"os"
 	"testing"
 	"time"
 
@@ -37,16 +35,7 @@ type fakeIAM struct {
 
 func loadFakeIAM(t *testing.T) *fakeIAM {
 	t.Helper()
-	readJSON := func(name string, v any) {
-		t.Helper()
-		raw, err := os.ReadFile("testdata/" + name)
-		if err != nil {
-			t.Fatalf("read testdata/%s: %v", name, err)
-		}
-		if err := json.Unmarshal(raw, v); err != nil {
-			t.Fatalf("parse testdata/%s: %v", name, err)
-		}
-	}
+	readJSON := func(name string, v any) { readTestdataJSON(t, name, v) }
 
 	f := &fakeIAM{}
 	readJSON("iam_users.json", &f.userNames)
@@ -180,6 +169,54 @@ func (f *fakeIAM) ListAccessKeys(ctx context.Context, params *iam.ListAccessKeys
 		})
 	}
 	return out, nil
+}
+
+// nilCreateDateIAM is a minimal IAMAPI whose ListAccessKeys returns one
+// access key with no CreateDate - a shape AWS's own SDK type allows
+// (AccessKeyMetadata.CreateDate is a plain pointer) but does not
+// document as ever actually happening. Only ListAccessKeys is exercised
+// by TestCollectAccessKeysUnresolvedOnMissingCreateDate below; the other
+// three methods panic if ever called, so an accidental broadening of
+// that test fails loudly rather than silently calling into a stub.
+type nilCreateDateIAM struct{}
+
+func (nilCreateDateIAM) ListUsers(context.Context, *iam.ListUsersInput, ...func(*iam.Options)) (*iam.ListUsersOutput, error) {
+	panic("nilCreateDateIAM: ListUsers not implemented")
+}
+
+func (nilCreateDateIAM) GetLoginProfile(context.Context, *iam.GetLoginProfileInput, ...func(*iam.Options)) (*iam.GetLoginProfileOutput, error) {
+	panic("nilCreateDateIAM: GetLoginProfile not implemented")
+}
+
+func (nilCreateDateIAM) ListMFADevices(context.Context, *iam.ListMFADevicesInput, ...func(*iam.Options)) (*iam.ListMFADevicesOutput, error) {
+	panic("nilCreateDateIAM: ListMFADevices not implemented")
+}
+
+func (nilCreateDateIAM) ListAccessKeys(ctx context.Context, params *iam.ListAccessKeysInput, optFns ...func(*iam.Options)) (*iam.ListAccessKeysOutput, error) {
+	return &iam.ListAccessKeysOutput{
+		AccessKeyMetadata: []types.AccessKeyMetadata{
+			{Status: types.StatusTypeActive, CreateDate: nil},
+		},
+	}, nil
+}
+
+// TestCollectAccessKeysUnresolvedOnMissingCreateDate is a regression
+// test: an earlier version of collectAccessKeys silently dropped a key
+// with no CreateDate from Keys while still reporting the overall result
+// as Deterministic - undercounting a user's real key inventory with no
+// signal anything was omitted. If this ever happens against a real
+// account, the whole result must come back Unresolved instead.
+func TestCollectAccessKeysUnresolvedOnMissingCreateDate(t *testing.T) {
+	got := collectAccessKeys(context.Background(), nilCreateDateIAM{}, "someone", testObservedAt)
+	if got.Provenance.Confidence != provenance.Unresolved {
+		t.Fatalf("Provenance.Confidence = %q, want %q", got.Provenance.Confidence, provenance.Unresolved)
+	}
+	if got.Provenance.UnresolvedReason == "" {
+		t.Error("Provenance.UnresolvedReason is empty")
+	}
+	if len(got.Keys) != 0 {
+		t.Errorf("Keys = %v, want empty (the whole result is Unresolved, not partially populated)", got.Keys)
+	}
 }
 
 func TestCollectIAM(t *testing.T) {

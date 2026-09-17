@@ -9,7 +9,6 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/iam/types"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/kernwill/substrate/internal/provenance"
 )
@@ -17,12 +16,6 @@ import (
 // IAMCollectorVersion is this file's own collector version (FR-4.1),
 // independent of S3CollectorVersion and the overall binary version.
 const IAMCollectorVersion = "aws-iam/v0.1.0"
-
-// maxConcurrentIAMUsers mirrors maxConcurrentBuckets's reasoning (s3.go):
-// each user's three follow-up calls are independent of every other
-// user's, so a bounded worker pool avoids turning an account with
-// thousands of IAM users into thousands of sequential round trips.
-const maxConcurrentIAMUsers = 16
 
 // IAMAPI names only the IAM operations this file's collector calls. See
 // this package's doc.go for why this is a narrow, hand-written interface
@@ -100,7 +93,7 @@ type IAMGraph struct {
 
 // CollectIAM lists every IAM user visible to client and reads their
 // console login profile, MFA devices, and access keys, up to
-// maxConcurrentIAMUsers at a time.
+// maxConcurrentItems at a time (collectConcurrent, concurrent.go).
 //
 // observedAt is stamped as every resulting fact's Provenance.Timestamp
 // and used to compute each access key's age - see CollectS3's doc
@@ -110,26 +103,15 @@ func CollectIAM(ctx context.Context, client IAMAPI, observedAt time.Time) (*IAMG
 	if err != nil {
 		return nil, fmt.Errorf("aws: iam: list users: %w", err)
 	}
-
-	users := make([]IAMUser, len(names))
-	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(maxConcurrentIAMUsers)
-	for i, name := range names {
-		i, name := i, name
-		g.Go(func() error {
-			users[i] = IAMUser{
-				Name:            name,
-				ConsolePassword: collectConsolePassword(gctx, client, name, observedAt),
-				MFADevices:      collectMFADevices(gctx, client, name, observedAt),
-				AccessKeys:      collectAccessKeys(gctx, client, name, observedAt),
-			}
-			return nil
-		})
-	}
-	// Every collect* function reports its own failure as an Unresolved
-	// fact rather than a Go error (see their doc comments), so g.Wait()
-	// itself can only ever fail on ctx cancellation.
-	if err := g.Wait(); err != nil {
+	users, err := collectConcurrent(ctx, names, func(ctx context.Context, name string) IAMUser {
+		return IAMUser{
+			Name:            name,
+			ConsolePassword: collectConsolePassword(ctx, client, name, observedAt),
+			MFADevices:      collectMFADevices(ctx, client, name, observedAt),
+			AccessKeys:      collectAccessKeys(ctx, client, name, observedAt),
+		}
+	})
+	if err != nil {
 		return nil, fmt.Errorf("aws: iam: collect users: %w", err)
 	}
 	return &IAMGraph{Users: users}, nil
@@ -208,9 +190,15 @@ func collectMFADevices(ctx context.Context, client IAMAPI, user string, observed
 // collectAccessKeys lists user's access keys and computes each one's age
 // in whole days as of observedAt. A key with no CreateDate in the
 // response (undocumented by AWS as a possible shape, but not type-system
-// impossible - AccessKeyMetadata.CreateDate is a plain pointer) is
-// omitted from Keys rather than assigned a guessed age; this is expected
-// to never actually happen in practice against a real account.
+// impossible - AccessKeyMetadata.CreateDate is a plain pointer, and
+// expected to never actually happen in practice against a real account)
+// makes the WHOLE result Unresolved, rather than silently dropping just
+// that one key from an otherwise-Deterministic Keys list: a partial
+// result with no signal that anything was omitted is exactly the
+// "byte-identical to a bucket/user that was never queried at all" fail-
+// silent outcome CollectS3's own doc comment (s3.go) already rules out
+// for its per-field API failures, applied here to a per-item response
+// anomaly instead of a whole-call error.
 func collectAccessKeys(ctx context.Context, client IAMAPI, user string, observedAt time.Time) *AccessKeys {
 	const api = "iam:ListAccessKeys"
 	paginator := iam.NewListAccessKeysPaginator(client, &iam.ListAccessKeysInput{UserName: &user})
@@ -222,7 +210,7 @@ func collectAccessKeys(ctx context.Context, client IAMAPI, user string, observed
 		}
 		for _, k := range page.AccessKeyMetadata {
 			if k.CreateDate == nil {
-				continue
+				return &AccessKeys{Provenance: iamUnresolvedRecord(user, api, "response included an access key with no create date", observedAt)}
 			}
 			keys = append(keys, AccessKey{
 				Active:  k.Status == types.StatusTypeActive,

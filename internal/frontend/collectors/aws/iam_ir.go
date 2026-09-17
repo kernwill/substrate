@@ -39,26 +39,38 @@ var iamUserMFA = ir.Control{Family: "IA", Base: 2}
 // guessed-at one.
 var iamUserAccessKeys = ir.Control{Family: "IA", Base: 5}
 
-// IAMToIR converts g's users into IR nodes.
+// iamUserConsolePassword is the control assignment for whether an IAM
+// user has a console login profile at all: base IA-2, the same control
+// as iamUserMFA above, not IA-5. Reviewed and decided deliberately: a
+// console password is the base authentication mechanism IA-2's own
+// MFA-requiring enhancements (IA-2(1)/(2)) layer a second factor on top
+// of, so "does this user have an interactive login surface" and "does
+// this user have MFA enrolled" are one IA-2 story, not two stories in
+// different control families a backend predicate would otherwise need
+// to correlate across.
 //
-// Two of the three collected facts are mapped, both to human-reviewed
-// control assignments (see iamUserMFA and iamUserAccessKeys above):
-// MFA device enrollment and access-key inventory/age. A user whose
+// Kept as its OWN node (mapUserConsolePassword), not folded into
+// mapUserMFA's node, even though both share this same control: the two
+// facts come from independent API calls (GetLoginProfile vs
+// ListMFADevices) with independent resolution outcomes, and ir.Node has
+// exactly one Provenance field. Merging them would force either
+// dropping a resolved fact because the other call failed, or fabricating
+// a shared provenance that doesn't truly describe both - both wrong.
+// Keeping them separate costs nothing: a backend rule that needs both
+// facts for the same user already has a join key with no new mechanism
+// required, since both nodes' Provenance.Locator.Parameters carry the
+// same "user" value (observedRecord's own existing shape - see
+// provenance.go).
+var iamUserConsolePassword = ir.Control{Family: "IA", Base: 2}
+
+// IAMToIR converts g's users into IR nodes: MFA device enrollment,
+// access-key inventory/age, and console login profile existence, each
+// mapped to a human-reviewed control assignment (see iamUserMFA,
+// iamUserAccessKeys, and iamUserConsolePassword above). A user whose
 // corresponding fact could not be resolved (Provenance.Confidence !=
 // Deterministic - see iam.go for why an API failure is recorded rather
 // than dropped) produces no node for it, the same "never guess"
 // treatment every other mapper in this codebase applies.
-//
-// IAMUser.ConsolePassword is deliberately NOT mapped yet. Whether a
-// user has a console login profile is plainly an IA-family fact, and
-// pairing it with MFA enrollment is exactly what a backend predicate
-// would need to judge "this user can log in interactively but has no
-// second factor" - but which control it maps to has not been reviewed,
-// and this file does not decide that unilaterally (the same treatment
-// S3 access logging gets in ir.go). The practical consequence, worth
-// knowing before trusting IA-2 coverage: a backend today sees the MFA
-// device count alone and cannot yet condition on whether the user even
-// has console access to protect.
 func IAMToIR(g *IAMGraph) (ir.Graph, error) {
 	var out ir.Graph
 	for _, u := range g.Users {
@@ -66,6 +78,9 @@ func IAMToIR(g *IAMGraph) (ir.Graph, error) {
 			out.Nodes = append(out.Nodes, node)
 		}
 		if node, ok := mapUserAccessKeys(u); ok {
+			out.Nodes = append(out.Nodes, node)
+		}
+		if node, ok := mapUserConsolePassword(u); ok {
 			out.Nodes = append(out.Nodes, node)
 		}
 	}
@@ -112,14 +127,26 @@ func mapUserAccessKeys(u IAMUser) (ir.Node, bool) {
 		return ir.Node{}, false
 	}
 
+	// oldestActiveAge tracks the maximum AgeDays seen so far, but is not
+	// seeded at 0: 0 is a real, meaningful AgeDays value (a key rotated
+	// today), and seeding the running maximum there silently clamped a
+	// negative AgeDays - which can happen under clock skew between this
+	// host and AWS, or a key created in the same instant observedAt was
+	// captured - to "0", reading as "freshly rotated" instead of
+	// surfacing the actual anomalous value. sawActive tracks whether
+	// oldestActiveAge has been set from a real key yet, so the first
+	// active key encountered is taken unconditionally rather than
+	// compared against an assumed floor.
 	activeCount, oldestActiveAge := 0, 0
+	sawActive := false
 	for _, k := range u.AccessKeys.Keys {
 		if !k.Active {
 			continue
 		}
 		activeCount++
-		if k.AgeDays > oldestActiveAge {
+		if !sawActive || k.AgeDays > oldestActiveAge {
 			oldestActiveAge = k.AgeDays
+			sawActive = true
 		}
 	}
 
@@ -138,6 +165,27 @@ func mapUserAccessKeys(u IAMUser) (ir.Node, bool) {
 		Kind:          "iam_user_access_keys",
 		Attributes:    attrs,
 		Provenance:    u.AccessKeys.Provenance,
+		SchemaVersion: ir.SchemaVersion,
+	}, true
+}
+
+// mapUserConsolePassword records whether u has a console login profile
+// at all. False is a real, resolved measurement, not an absence: it is
+// exactly what tells a backend predicate that u.MFADevices.Count == 0
+// is irrelevant for this user (no password-based login surface exists
+// to protect), rather than a live gap the way it would be for a user
+// who does have a console password.
+func mapUserConsolePassword(u IAMUser) (ir.Node, bool) {
+	if u.ConsolePassword == nil || u.ConsolePassword.Provenance.Confidence != provenance.Deterministic {
+		return ir.Node{}, false
+	}
+	return ir.Node{
+		ID:            iamNodeID(u.Name, "console-password"),
+		ControlFamily: iamUserConsolePassword.Family,
+		Controls:      []ir.Control{iamUserConsolePassword},
+		Kind:          "iam_user_console_password",
+		Attributes:    map[string]string{"console_password_enabled": strconv.FormatBool(u.ConsolePassword.Enabled)},
+		Provenance:    u.ConsolePassword.Provenance,
 		SchemaVersion: ir.SchemaVersion,
 	}, true
 }

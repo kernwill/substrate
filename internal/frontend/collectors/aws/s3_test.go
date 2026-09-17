@@ -2,9 +2,7 @@ package aws
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"os"
 	"testing"
 	"time"
 
@@ -34,16 +32,7 @@ type fakeS3 struct {
 
 func loadFakeS3(t *testing.T) *fakeS3 {
 	t.Helper()
-	readJSON := func(name string, v any) {
-		t.Helper()
-		raw, err := os.ReadFile("testdata/" + name)
-		if err != nil {
-			t.Fatalf("read testdata/%s: %v", name, err)
-		}
-		if err := json.Unmarshal(raw, v); err != nil {
-			t.Fatalf("parse testdata/%s: %v", name, err)
-		}
-	}
+	readJSON := func(name string, v any) { readTestdataJSON(t, name, v) }
 
 	f := &fakeS3{}
 	readJSON("buckets.json", &f.bucketNames)

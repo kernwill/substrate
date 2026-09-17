@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/kernwill/substrate/internal/provenance"
 )
@@ -17,15 +16,6 @@ import (
 // same account state. It is independent of the overall substrate binary
 // version and of any other collector in this package.
 const S3CollectorVersion = "aws-s3/v0.1.0"
-
-// maxConcurrentBuckets bounds how many buckets CollectS3 collects at
-// once. Each bucket needs three independent API calls with no
-// cross-bucket dependency, so collecting sequentially - the original
-// shape of this file - turned an account with hundreds of buckets into
-// hundreds of sequential round trips; a fixed worker limit gets most of
-// the win without needing per-account tuning or a flag nobody would set
-// correctly on a CI gate's first run.
-const maxConcurrentBuckets = 16
 
 // S3API names only the S3 operations this file's collector calls,
 // deliberately narrower than the full *s3.Client the AWS SDK generates -
@@ -101,7 +91,7 @@ type S3Graph struct {
 
 // CollectS3 lists every bucket visible to client and reads its
 // encryption, Block Public Access, and access-logging configuration, up
-// to maxConcurrentBuckets at a time.
+// to maxConcurrentItems at a time (collectConcurrent, concurrent.go).
 //
 // observedAt is stamped as every resulting fact's Provenance.Timestamp -
 // "when the fact was true at the source... an API response's observation
@@ -118,27 +108,15 @@ func CollectS3(ctx context.Context, client S3API, observedAt time.Time) (*S3Grap
 	if err != nil {
 		return nil, fmt.Errorf("aws: s3: list buckets: %w", err)
 	}
-
-	buckets := make([]Bucket, len(names))
-	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(maxConcurrentBuckets)
-	for i, name := range names {
-		i, name := i, name
-		g.Go(func() error {
-			buckets[i] = Bucket{
-				Name:              name,
-				Encryption:        collectBucketEncryption(gctx, client, name, observedAt),
-				PublicAccessBlock: collectBucketPublicAccessBlock(gctx, client, name, observedAt),
-				Logging:           collectBucketLogging(gctx, client, name, observedAt),
-			}
-			return nil
-		})
-	}
-	// Every collectBucket* function reports its own failure as an
-	// Unresolved fact rather than a Go error (see their doc comments), so
-	// g.Wait() itself can only ever fail on ctx cancellation - nothing
-	// launched above returns a non-nil error otherwise.
-	if err := g.Wait(); err != nil {
+	buckets, err := collectConcurrent(ctx, names, func(ctx context.Context, name string) Bucket {
+		return Bucket{
+			Name:              name,
+			Encryption:        collectBucketEncryption(ctx, client, name, observedAt),
+			PublicAccessBlock: collectBucketPublicAccessBlock(ctx, client, name, observedAt),
+			Logging:           collectBucketLogging(ctx, client, name, observedAt),
+		}
+	})
+	if err != nil {
 		return nil, fmt.Errorf("aws: s3: collect buckets: %w", err)
 	}
 	return &S3Graph{Buckets: buckets}, nil
