@@ -192,6 +192,44 @@ func TestCompileRerunLeavesNoBackupDirectory(t *testing.T) {
 	}
 }
 
+// TestPublishFromTmpRestoresPreviousOutputOnRenameFailure is a
+// regression test for a bug /code-review caught in publishOutput's
+// predecessor: if the second rename (tmpOut -> out) failed after the
+// first rename (out -> backupOut) had already succeeded, out was left
+// missing entirely and the previous good output sat un-restored at
+// backupOut - worse than the partial-mix problem the whole two-rename
+// scheme exists to prevent.
+//
+// tmpOut is deliberately never created, so os.Rename(tmpOut, out)
+// fails with a real, portable "source does not exist" error - no need
+// to contrive a permission or cross-device failure to exercise this
+// path.
+func TestPublishFromTmpRestoresPreviousOutputOnRenameFailure(t *testing.T) {
+	dir := t.TempDir()
+	out := filepath.Join(dir, "out")
+	backupOut := out + ".old"
+	tmpOut := filepath.Join(dir, "out.tmp") // never created
+
+	if err := os.MkdirAll(backupOut, 0o755); err != nil {
+		t.Fatalf("create backupOut: %v", err)
+	}
+	marker := filepath.Join(backupOut, "marker.txt")
+	if err := os.WriteFile(marker, []byte("previous output"), 0o644); err != nil {
+		t.Fatalf("write marker: %v", err)
+	}
+
+	if _, err := publishFromTmp(tmpOut, out, backupOut, true); err == nil {
+		t.Fatal("publishFromTmp: got nil error, want an error (tmpOut does not exist, so the rename must fail)")
+	}
+
+	if _, err := os.Stat(filepath.Join(out, "marker.txt")); err != nil {
+		t.Errorf("out/marker.txt: %v, want the previous output restored to out after the failed publish", err)
+	}
+	if _, err := os.Stat(backupOut); !os.IsNotExist(err) {
+		t.Errorf("backupOut = %v, want it gone (restored back to out), not stranded", err)
+	}
+}
+
 // TestCompileReportsMissingConventionDirectories confirms the compile
 // summary distinguishes "this source has no Kubernetes manifests or
 // GitHub Actions workflows at all" from "we looked in k8s/ and

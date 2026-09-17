@@ -215,43 +215,17 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	// Publish tmpOut at *out with two back-to-back renames rather than
-	// RemoveAll(*out) followed by Rename(tmpOut, *out): os.Rename cannot
-	// itself atomically replace an existing non-empty directory (POSIX
-	// rename(2) requires the destination directory to be empty), so
-	// deleting first was the only way to make Rename succeed - but a
-	// process killed between that delete and the rename left *out
-	// missing entirely, which is worse than the partial-mix problem this
-	// function exists to prevent: no artifact where a stale-but-complete
-	// one used to be. Renaming *out out of the way first shrinks that
-	// unsafe window from "however long a recursive delete takes" to the
-	// gap between two near-instant rename() calls, and - if that exact
-	// window is still hit - leaves the previous run's complete output
-	// recoverable at backupOut instead of gone.
-	backupOut := *out + ".old"
-	if _, err := os.Stat(*out); err == nil {
-		if err := os.RemoveAll(backupOut); err != nil {
-			fmt.Fprintf(stderr, "substrate compile: clear stale %s: %v\n", backupOut, err)
-			return 2
-		}
-		if err := os.Rename(*out, backupOut); err != nil {
-			fmt.Fprintf(stderr, "substrate compile: move previous %s aside: %v\n", *out, err)
-			return 2
-		}
-	} else if !errors.Is(err, os.ErrNotExist) {
-		fmt.Fprintf(stderr, "substrate compile: stat %s: %v\n", *out, err)
-		return 2
-	}
-	if err := os.Rename(tmpOut, *out); err != nil {
-		fmt.Fprintf(stderr, "substrate compile: publish %s: %v\n", *out, err)
+	// Publish tmpOut at *out - see publishOutput's own doc comment for
+	// why this is two renames with a restore path, not a single
+	// delete-then-rename.
+	warning, err := publishOutput(tmpOut, *out)
+	if err != nil {
+		fmt.Fprintf(stderr, "substrate compile: %v\n", err)
 		return 2
 	}
 	committed = true
-	if err := os.RemoveAll(backupOut); err != nil {
-		// Not fatal: *out is already correct - a leftover backupOut is
-		// disk space, not a correctness problem - but still worth
-		// telling the operator so it doesn't silently accumulate.
-		fmt.Fprintf(stderr, "substrate compile: warning: could not remove backup %s: %v\n", backupOut, err)
+	if warning != "" {
+		fmt.Fprintf(stderr, "substrate compile: warning: %s\n", warning)
 	}
 
 	fmt.Fprintf(stdout, "parsed %d terraform resource(s), %s, and %s from %s; compiled %d evidence node(s) and %d edge(s); evaluated %d KSI indicator(s): %s\n",
@@ -259,6 +233,71 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 		resourceCount(ghaDir, len(ghaGraph.Workflows), "github actions workflow"), *source, len(evidence.Nodes), len(evidence.Edges),
 		len(ksiResults), statusTally(ksiResults))
 	return 0
+}
+
+// publishOutput moves tmpOut into place at out with two back-to-back
+// renames rather than RemoveAll(out) followed by Rename(tmpOut, out):
+// os.Rename cannot itself atomically replace an existing non-empty
+// directory (POSIX rename(2) requires the destination directory to be
+// empty), so deleting first was the only way to make Rename succeed -
+// but a process killed between that delete and the rename left out
+// missing entirely, which is worse than the partial-mix problem this
+// function exists to prevent: no artifact where a stale-but-complete
+// one used to be. Renaming out out of the way first shrinks that
+// unsafe window from "however long a recursive delete takes" to the
+// gap between two near-instant rename() calls, and publishFromTmp
+// restores the previous output from that backup if the second rename
+// still fails inside that window, rather than leaving out missing.
+//
+// Returns a non-fatal warning (a leftover backup that couldn't be
+// cleaned up after a successful publish - disk space, not a
+// correctness problem) alongside a nil error, or a nil warning
+// alongside a real error.
+func publishOutput(tmpOut, out string) (warning string, err error) {
+	backupOut := out + ".old"
+	hadPrevious := false
+	if _, statErr := os.Stat(out); statErr == nil {
+		hadPrevious = true
+		if err := os.RemoveAll(backupOut); err != nil {
+			return "", fmt.Errorf("clear stale %s: %w", backupOut, err)
+		}
+		if err := os.Rename(out, backupOut); err != nil {
+			return "", fmt.Errorf("move previous %s aside: %w", out, err)
+		}
+	} else if !errors.Is(statErr, os.ErrNotExist) {
+		return "", fmt.Errorf("stat %s: %w", out, statErr)
+	}
+	return publishFromTmp(tmpOut, out, backupOut, hadPrevious)
+}
+
+// publishFromTmp performs the second rename (tmpOut -> out) and, if it
+// fails and hadPrevious is true, restores backupOut back to out rather
+// than leaving out missing - the exact failure this whole two-rename
+// scheme exists to avoid, which a naive "rename, and if that fails just
+// report the error" version of this function missed: a process killed
+// (or any other rename failure) between the two renames left out
+// missing entirely, with the previous good output stranded, un-restored,
+// at backupOut. Split out from publishOutput so this specific recovery
+// path - the one a failure between the two renames exercises - can be
+// tested directly against a pre-arranged filesystem state, without
+// needing to force a real os.Rename failure at exactly the right
+// instant (see compile_test.go).
+func publishFromTmp(tmpOut, out, backupOut string, hadPrevious bool) (warning string, err error) {
+	if err := os.Rename(tmpOut, out); err != nil {
+		if !hadPrevious {
+			return "", fmt.Errorf("publish %s: %w", out, err)
+		}
+		if restoreErr := os.Rename(backupOut, out); restoreErr != nil {
+			return "", fmt.Errorf("publish %s: %w (restoring previous output from %s also failed: %v)", out, err, backupOut, restoreErr)
+		}
+		return "", fmt.Errorf("publish %s: %w (previous output restored)", out, err)
+	}
+	if hadPrevious {
+		if err := os.RemoveAll(backupOut); err != nil {
+			return fmt.Sprintf("could not remove backup %s: %v", backupOut, err), nil
+		}
+	}
+	return "", nil
 }
 
 // statusTally renders results' status counts as "N satisfied, N
