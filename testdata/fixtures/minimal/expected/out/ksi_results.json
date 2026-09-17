@@ -1,0 +1,324 @@
+[
+  {
+    "indicator": "KSI-CED-RAT",
+    "family": "CED",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/ced and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-CMT-LMC",
+    "family": "CMT",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/cmt and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-CMT-RMV",
+    "family": "CMT",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/cmt and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-CMT-RVP",
+    "family": "CMT",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/cmt and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-CMT-VTD",
+    "family": "CMT",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/cmt and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-CNA-DFP",
+    "family": "CNA",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/cna and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-CNA-EIS",
+    "family": "CNA",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/cna and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-CNA-IBP",
+    "family": "CNA",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/cna and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-CNA-MAT",
+    "family": "CNA",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/cna and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-CNA-OFA",
+    "family": "CNA",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/cna and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-CNA-RNT",
+    "family": "CNA",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/cna and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-CNA-RVP",
+    "family": "CNA",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/cna and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-CNA-ULN",
+    "family": "CNA",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/cna and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-IAM-AAM",
+    "family": "IAM",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/iam and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-IAM-APM",
+    "family": "IAM",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/iam and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-IAM-ELP",
+    "family": "IAM",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/iam and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-IAM-JIT",
+    "family": "IAM",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/iam and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-IAM-SNU",
+    "family": "IAM",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/iam and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-IAM-SUS",
+    "family": "IAM",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/iam and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-INR-AAR",
+    "family": "INR",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/inr and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-INR-RIR",
+    "family": "INR",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/inr and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-INR-RPI",
+    "family": "INR",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/inr and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-MLA-ALA",
+    "family": "MLA",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/mla and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-MLA-EVC",
+    "family": "MLA",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/mla and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-MLA-LET",
+    "family": "MLA",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/mla and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-MLA-OSM",
+    "family": "MLA",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/mla and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-MLA-RVL",
+    "family": "MLA",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/mla and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-PIY-GIV",
+    "family": "PIY",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/piy and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-PIY-RES",
+    "family": "PIY",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/piy and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-PIY-RIS",
+    "family": "PIY",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/piy and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-PIY-RSD",
+    "family": "PIY",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/piy and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-PIY-RVD",
+    "family": "PIY",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/piy and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-RPL-ABO",
+    "family": "RPL",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/rpl and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-RPL-ARP",
+    "family": "RPL",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/rpl and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-RPL-RRO",
+    "family": "RPL",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/rpl and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-RPL-TRC",
+    "family": "RPL",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/rpl and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-SCR-MIT",
+    "family": "SCR",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/scr and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-SCR-MON",
+    "family": "SCR",
+    "status": "undetermined",
+    "reason": "no Rego evaluation module implemented yet for this KSI family",
+    "remediation_hint": "implement rego/ksi/scr and wire it into internal/backends/fedramp20x"
+  },
+  {
+    "indicator": "KSI-SVC-ACM",
+    "family": "SVC",
+    "status": "undetermined",
+    "reason": "no IR evidence collected for any control this indicator references",
+    "remediation_hint": "add a frontend collector or IR mapping producing a node for at least one referenced control"
+  },
+  {
+    "indicator": "KSI-SVC-ASM",
+    "family": "SVC",
+    "status": "undetermined",
+    "reason": "no IR evidence collected for any control this indicator references",
+    "remediation_hint": "add a frontend collector or IR mapping producing a node for at least one referenced control"
+  },
+  {
+    "indicator": "KSI-SVC-EIS",
+    "family": "SVC",
+    "status": "undetermined",
+    "reason": "no IR evidence collected for any control this indicator references",
+    "remediation_hint": "add a frontend collector or IR mapping producing a node for at least one referenced control"
+  },
+  {
+    "indicator": "KSI-SVC-PRR",
+    "family": "SVC",
+    "status": "undetermined",
+    "reason": "no IR evidence collected for any control this indicator references",
+    "remediation_hint": "add a frontend collector or IR mapping producing a node for at least one referenced control"
+  },
+  {
+    "indicator": "KSI-SVC-RUD",
+    "family": "SVC",
+    "status": "undetermined",
+    "reason": "no IR evidence collected for any control this indicator references",
+    "remediation_hint": "add a frontend collector or IR mapping producing a node for at least one referenced control"
+  },
+  {
+    "indicator": "KSI-SVC-SIN",
+    "family": "SVC",
+    "status": "undetermined",
+    "reason": "missing IR evidence for control(s): [\"ac-1\", \"ac-17.2\", \"cp-9.8\", \"sc-13\", \"sc-20\", \"sc-21\", \"sc-22\", \"sc-23\", \"sc-28\", \"sc-8\", \"sc-8.1\"]",
+    "remediation_hint": "add a frontend collector or IR mapping producing a node for the missing control(s)"
+  },
+  {
+    "indicator": "KSI-SVC-VCM",
+    "family": "SVC",
+    "status": "undetermined",
+    "reason": "no IR evidence collected for any control this indicator references",
+    "remediation_hint": "add a frontend collector or IR mapping producing a node for at least one referenced control"
+  },
+  {
+    "indicator": "KSI-SVC-VRI",
+    "family": "SVC",
+    "status": "undetermined",
+    "reason": "no IR evidence collected for any control this indicator references",
+    "remediation_hint": "add a frontend collector or IR mapping producing a node for at least one referenced control"
+  }
+]

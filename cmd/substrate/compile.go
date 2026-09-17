@@ -1,17 +1,21 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
+	"github.com/kernwill/substrate/internal/backends/fedramp20x"
 	"github.com/kernwill/substrate/internal/frontend/githubactions"
 	"github.com/kernwill/substrate/internal/frontend/kubernetes"
 	"github.com/kernwill/substrate/internal/frontend/terraform"
 	"github.com/kernwill/substrate/internal/ir"
+	"github.com/kernwill/substrate/internal/rules"
 )
 
 // runCompile implements "substrate compile --source <dir> --out <dir>"
@@ -53,8 +57,18 @@ import (
 // or field with no reviewed entry produces no node, never a guess - see
 // each ToIR's own doc comment.
 //
-// Emitting FedRAMP artifacts from the evidence graph (internal/backends,
-// FR-6) remains unimplemented.
+// The merged evidence graph is then scored against the vendored FedRAMP
+// Consolidated Rules dataset (internal/rules.Default) by
+// internal/backends/fedramp20x.Evaluate (FR-6.1), written to
+// <out>/ksi_results.json. Only the KSI-SVC family has a real Rego
+// evaluation module today (rego/ksi/svc) - every indicator in the other
+// nine families comes back undetermined with an explicit "not yet
+// implemented" reason rather than being silently omitted, and even
+// KSI-SVC's own indicators will mostly read undetermined for a real
+// repository today, honestly, since the frontends above evidence only a
+// handful of the many controls each indicator references. See
+// docs/adr/0007 for why that's the deliberate, honest state of the
+// backend right now rather than a bug.
 //
 // Nothing is written to --out until every parse, map, and validate step
 // above has succeeded: writing happens against a "--out.tmp" sibling
@@ -134,6 +148,17 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
+	ds, err := rules.Default()
+	if err != nil {
+		fmt.Fprintf(stderr, "substrate compile: load rules dataset: %v\n", err)
+		return 2
+	}
+	ksiResults, err := fedramp20x.Evaluate(context.Background(), ds, evidence)
+	if err != nil {
+		fmt.Fprintf(stderr, "substrate compile: evaluate KSI indicators: %v\n", err)
+		return 2
+	}
+
 	// Every parse, map, and validate step above must succeed before any
 	// of it touches --out. Writing runs entirely against a sibling
 	// ".tmp" directory and is only made visible at *out by a single
@@ -185,6 +210,10 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "substrate compile: %v\n", err)
 		return 2
 	}
+	if err := writeArtifact(tmpOut, "ksi_results.json", ksiResults); err != nil {
+		fmt.Fprintf(stderr, "substrate compile: %v\n", err)
+		return 2
+	}
 
 	// Publish tmpOut at *out with two back-to-back renames rather than
 	// RemoveAll(*out) followed by Rename(tmpOut, *out): os.Rename cannot
@@ -225,10 +254,45 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "substrate compile: warning: could not remove backup %s: %v\n", backupOut, err)
 	}
 
-	fmt.Fprintf(stdout, "parsed %d terraform resource(s), %s, and %s from %s; compiled %d evidence node(s) and %d edge(s)\n",
+	fmt.Fprintf(stdout, "parsed %d terraform resource(s), %s, and %s from %s; compiled %d evidence node(s) and %d edge(s); evaluated %d KSI indicator(s): %s\n",
 		len(tfGraph.Resources), resourceCount(k8sDir, len(k8sGraph.Resources), "kubernetes resource"),
-		resourceCount(ghaDir, len(ghaGraph.Workflows), "github actions workflow"), *source, len(evidence.Nodes), len(evidence.Edges))
+		resourceCount(ghaDir, len(ghaGraph.Workflows), "github actions workflow"), *source, len(evidence.Nodes), len(evidence.Edges),
+		len(ksiResults), statusTally(ksiResults))
 	return 0
+}
+
+// statusTally renders results' status counts as "N satisfied, N
+// undetermined, ...", one term per status that actually occurs, in a
+// fixed status order so the summary line reads the same way (and is
+// diffable the same way) run to run regardless of which indicators
+// happened to produce which status. A status with zero results is
+// omitted rather than printed as "0 satisfied" - the common case today
+// (no not_satisfied, not_applicable, or requires_attestation results
+// anywhere, since no family implements those paths yet) would otherwise
+// clutter every real run's output with three permanently-zero terms.
+func statusTally(results []fedramp20x.IndicatorResult) string {
+	order := []fedramp20x.Status{
+		fedramp20x.StatusSatisfied,
+		fedramp20x.StatusNotSatisfied,
+		fedramp20x.StatusUndetermined,
+		fedramp20x.StatusNotApplicable,
+		fedramp20x.StatusRequiresAttestation,
+	}
+	counts := make(map[fedramp20x.Status]int, len(order))
+	for _, r := range results {
+		counts[r.Status]++
+	}
+
+	var terms []string
+	for _, status := range order {
+		if n := counts[status]; n > 0 {
+			terms = append(terms, fmt.Sprintf("%d %s", n, status))
+		}
+	}
+	if len(terms) == 0 {
+		return "none"
+	}
+	return strings.Join(terms, ", ")
 }
 
 // resourceCount renders a frontend's parsed count for the summary line,

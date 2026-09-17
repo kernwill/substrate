@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -9,7 +10,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kernwill/substrate/internal/backends/fedramp20x"
 	"github.com/kernwill/substrate/internal/goldentest"
+	"github.com/kernwill/substrate/internal/rules"
 )
 
 // TestGoldenCompile is T-008's own "done when" case: it runs
@@ -83,6 +86,58 @@ func runCompileFixture(t *testing.T, fixtureDir string) map[string][]byte {
 		t.Fatalf("walk --out dir %s: %v", outDir, err)
 	}
 	return artifacts
+}
+
+// TestCompileWritesKSIResults exercises FR-6's wiring into the compile
+// pipeline directly, rather than relying solely on the golden fixture
+// (which a careless SUBSTRATE_UPDATE_GOLDEN=1 regeneration could paper
+// over without anyone noticing a real regression, per CLAUDE.md's own
+// warning about that file). It cross-checks the written artifact against
+// the vendored dataset's own indicator count instead of hardcoding a
+// number that would silently drift the next time the dataset updates.
+func TestCompileWritesKSIResults(t *testing.T) {
+	out := filepath.Join(t.TempDir(), "out")
+	var stdout, stderr bytes.Buffer
+	if code := runCompile([]string{"--source", "../../testdata/fixtures/minimal", "--out", out}, &stdout, &stderr); code != 0 {
+		t.Fatalf("runCompile exit code = %d, want 0; stderr: %s", code, stderr.String())
+	}
+
+	raw, err := os.ReadFile(filepath.Join(out, "ksi_results.json"))
+	if err != nil {
+		t.Fatalf("read ksi_results.json: %v", err)
+	}
+	var results []fedramp20x.IndicatorResult
+	if err := json.Unmarshal(raw, &results); err != nil {
+		t.Fatalf("parse ksi_results.json: %v", err)
+	}
+
+	ds, err := rules.Default()
+	if err != nil {
+		t.Fatalf("rules.Default(): %v", err)
+	}
+	wantIndicators := 0
+	for _, theme := range ds.KSI {
+		wantIndicators += len(theme.Indicators)
+	}
+	if len(results) != wantIndicators {
+		t.Errorf("got %d KSI results, want %d (one per indicator in the vendored dataset)", len(results), wantIndicators)
+	}
+
+	for _, r := range results {
+		switch r.Status {
+		case fedramp20x.StatusSatisfied, fedramp20x.StatusNotSatisfied, fedramp20x.StatusUndetermined,
+			fedramp20x.StatusNotApplicable, fedramp20x.StatusRequiresAttestation:
+		default:
+			t.Errorf("%s: status = %q, not a recognized FR-6.6 status", r.Indicator, r.Status)
+		}
+		if r.Reason == "" {
+			t.Errorf("%s: reason is empty", r.Indicator)
+		}
+	}
+
+	if !strings.Contains(stdout.String(), "evaluated") || !strings.Contains(stdout.String(), "KSI indicator") {
+		t.Errorf("stdout = %q, want a KSI evaluation summary", stdout.String())
+	}
 }
 
 // TestCompileLeavesNoTempDirectoryOnSuccess guards the atomic-write fix:
