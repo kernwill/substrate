@@ -10,6 +10,7 @@ import (
 
 	"github.com/kernwill/substrate/internal/frontend/vcs"
 	"github.com/kernwill/substrate/internal/provenance"
+	"github.com/kernwill/substrate/internal/redact"
 )
 
 // CollectorVersion is this package's own collector version (FR-4.1),
@@ -56,6 +57,13 @@ func Parse(dir string) (*WorkflowGraph, error) {
 		if doc == nil {
 			continue // an empty file has no workflow to record
 		}
+		// Redact at collection (CLAUDE.md): before doc is stored on
+		// Workflow.Attributes and written raw to disk, or reaches any
+		// mapping logic downstream. A workflow's own YAML is the only
+		// place a secret could realistically appear here - GitHub Actions
+		// encourages ${{ secrets.X }} references instead of literal
+		// values, but nothing stops an author from hardcoding one anyway.
+		doc = redact.Value(doc).(map[string]any)
 
 		name, _ := doc["name"].(string)
 		graph.Workflows = append(graph.Workflows, Workflow{

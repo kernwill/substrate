@@ -99,7 +99,7 @@ func Parse(dir string) (*ResourceGraph, error) {
 	graph := &ResourceGraph{}
 	for _, r := range pending {
 		eval := &resourceEval{variables: variables}
-		attrs := eval.evalBody(r.body, "")
+		attrs := redactAttributes(eval.evalBody(r.body, ""))
 		graph.Resources = append(graph.Resources, Resource{
 			Address:    r.addr,
 			Attributes: attrs,

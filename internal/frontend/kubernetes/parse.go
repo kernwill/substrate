@@ -12,6 +12,7 @@ import (
 
 	"github.com/kernwill/substrate/internal/frontend/vcs"
 	"github.com/kernwill/substrate/internal/provenance"
+	"github.com/kernwill/substrate/internal/redact"
 )
 
 // CollectorVersion is this package's own collector version (FR-4.1),
@@ -126,6 +127,44 @@ func parseFile(path string, r io.Reader, commitTime time.Time) ([]Resource, erro
 		if err != nil {
 			return nil, fmt.Errorf("kubernetes: %s:%d: document %d: %w", path, line, i, err)
 		}
+
+		// Redact at collection (CLAUDE.md), before doc is stored on
+		// Resource.Attributes and written raw to disk. A Secret object's
+		// "data"/"stringData" fields are, by Kubernetes' own convention,
+		// entirely secret material regardless of what any individual key
+		// inside them is named - "data" itself isn't a secret-shaped key
+		// name (a ConfigMap has one too, and that one is NOT secret), so
+		// this has to be a Kind-aware rule rather than something
+		// redact.Value's generic key-name pass could ever catch on its
+		// own. Applied before the generic pass below, which still runs
+		// over everything else - an annotation or env value named
+		// "password" anywhere, Secret or not.
+		if addr.Kind == "Secret" {
+			if _, ok := doc["data"]; ok {
+				doc["data"] = redact.Placeholder
+			}
+			if _, ok := doc["stringData"]; ok {
+				doc["stringData"] = redact.Placeholder
+			}
+		}
+		// kubectl writes the object's full prior manifest into this
+		// annotation on every apply, re-serialized as one JSON string -
+		// including a Secret's own "data"/"stringData" if the object
+		// ever was one, or any other object's own secret-shaped fields.
+		// redact.Value's generic pass below only recurses into actual
+		// map/slice structure, never into a string that happens to
+		// itself contain JSON text, so this annotation would otherwise
+		// carry an unredacted snapshot of exactly what the rule above
+		// just redacted. Unconditional on Kind: any object can carry it.
+		if metadata, ok := doc["metadata"].(map[string]any); ok {
+			if annotations, ok := metadata["annotations"].(map[string]any); ok {
+				const lastAppliedConfigAnnotation = "kubectl.kubernetes.io/last-applied-configuration"
+				if _, ok := annotations[lastAppliedConfigAnnotation]; ok {
+					annotations[lastAppliedConfigAnnotation] = redact.Placeholder
+				}
+			}
+		}
+		doc = redact.Value(doc).(map[string]any)
 
 		resources = append(resources, Resource{
 			Address:    addr,

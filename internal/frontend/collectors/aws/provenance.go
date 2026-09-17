@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/kernwill/substrate/internal/provenance"
+	"github.com/kernwill/substrate/internal/redact"
 )
 
 // observedRecord builds a Confidence=Deterministic provenance.Record for
@@ -26,10 +27,17 @@ func observedRecord(collectorVersion, api string, params map[string]string, obse
 }
 
 // unresolvedRecord is observedRecord's Confidence=Unresolved counterpart,
-// for when api genuinely could not be answered.
+// for when api genuinely could not be answered. reason is redacted
+// (CLAUDE.md's "redact at collection," applied here to error text
+// rather than a collected value) since every call site builds it from
+// a raw AWS SDK err.Error() - an AWS API error is not documented to
+// ever echo customer secrets back, but this is the one place in this
+// package where arbitrary, uncontrolled text reaches provenance at
+// all, and the redact.String defense-in-depth pass over it is cheap
+// insurance against the case where it someday does.
 func unresolvedRecord(collectorVersion, api, reason string, params map[string]string, observedAt time.Time) provenance.Record {
 	r := observedRecord(collectorVersion, api, params, observedAt)
 	r.Confidence = provenance.Unresolved
-	r.UnresolvedReason = reason
+	r.UnresolvedReason = redact.String(reason)
 	return r
 }
