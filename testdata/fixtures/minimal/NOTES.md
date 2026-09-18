@@ -16,6 +16,19 @@ sources at once:
   policy extraction).
 - `.github/workflows/ci.yml` - a workflow with `permissions: contents:
   read` and a dependency-review job (FR-2.6).
+- `Dockerfile` - a three-stage build covering the three outcomes
+  base-image extraction (FR-2.7) needs to distinguish: `builder`, an
+  external image pinned to an immutable digest (`golang:1.22@sha256:...`);
+  `test`, `FROM builder` - a reference to an earlier stage in the same
+  file, not an externally-sourced component at all; and the final,
+  unnamed stage, an external image with only a mutable tag
+  (`gcr.io/distroless/static-debian12:latest`, no digest). `FROM
+  scratch` and an unresolved build-arg reference
+  (`FROM ${BASE_IMAGE}`) are real cases too, but covered by
+  internal/frontend/dockerfile's own fixture-backed unit tests rather
+  than duplicated here - this fixture stays the smallest input that
+  exercises all three static frontends' interesting cases at once, not
+  every edge case each one individually handles.
 
 Once the real pipeline exists, this fixture is the first thing that
 must produce a byte-identical, schema-valid artifact set on every run
