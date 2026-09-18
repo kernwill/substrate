@@ -1,0 +1,102 @@
+{
+  "overall": {
+    "automated": 0,
+    "human_attested": 0,
+    "not_visible": 46,
+    "not_applicable": 0,
+    "applicable": 46,
+    "percent_automated": 0
+  },
+  "families": [
+    {
+      "family": "CED",
+      "automated": 0,
+      "human_attested": 0,
+      "not_visible": 1,
+      "not_applicable": 0,
+      "applicable": 1,
+      "percent_automated": 0
+    },
+    {
+      "family": "CMT",
+      "automated": 0,
+      "human_attested": 0,
+      "not_visible": 4,
+      "not_applicable": 0,
+      "applicable": 4,
+      "percent_automated": 0
+    },
+    {
+      "family": "CNA",
+      "automated": 0,
+      "human_attested": 0,
+      "not_visible": 8,
+      "not_applicable": 0,
+      "applicable": 8,
+      "percent_automated": 0
+    },
+    {
+      "family": "IAM",
+      "automated": 0,
+      "human_attested": 0,
+      "not_visible": 6,
+      "not_applicable": 0,
+      "applicable": 6,
+      "percent_automated": 0
+    },
+    {
+      "family": "INR",
+      "automated": 0,
+      "human_attested": 0,
+      "not_visible": 3,
+      "not_applicable": 0,
+      "applicable": 3,
+      "percent_automated": 0
+    },
+    {
+      "family": "MLA",
+      "automated": 0,
+      "human_attested": 0,
+      "not_visible": 5,
+      "not_applicable": 0,
+      "applicable": 5,
+      "percent_automated": 0
+    },
+    {
+      "family": "PIY",
+      "automated": 0,
+      "human_attested": 0,
+      "not_visible": 5,
+      "not_applicable": 0,
+      "applicable": 5,
+      "percent_automated": 0
+    },
+    {
+      "family": "RPL",
+      "automated": 0,
+      "human_attested": 0,
+      "not_visible": 4,
+      "not_applicable": 0,
+      "applicable": 4,
+      "percent_automated": 0
+    },
+    {
+      "family": "SCR",
+      "automated": 0,
+      "human_attested": 0,
+      "not_visible": 2,
+      "not_applicable": 0,
+      "applicable": 2,
+      "percent_automated": 0
+    },
+    {
+      "family": "SVC",
+      "automated": 0,
+      "human_attested": 0,
+      "not_visible": 8,
+      "not_applicable": 0,
+      "applicable": 8,
+      "percent_automated": 0
+    }
+  ]
+}

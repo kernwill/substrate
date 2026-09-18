@@ -4,6 +4,8 @@
 *.out
 .env
 .envrc
-coverage.*
+/coverage.out
+/coverage.html
+/coverage.txt
 /testdata/live/
 .DS_Store

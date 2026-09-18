@@ -88,6 +88,13 @@ import (
 // docs/adr/0007 for why that's the deliberate, honest state of the
 // backend right now rather than a bug.
 //
+// ksiResults is also aggregated into FR-6.7's coverage report
+// (fedramp20x.Coverage), written to <out>/coverage.json: how many
+// indicators, overall and per KSI family, are Automated (a real
+// satisfied/not_satisfied verdict), HumanAttested (requires_attestation -
+// determinately outside what any compiler can observe), or NotVisible
+// (undetermined - a real gap). See docs/adr/0012.
+//
 // Nothing is written to --out until every parse, map, and validate step
 // above has succeeded: writing happens against a "--out.tmp" sibling
 // directory, published at --out only at the very end via two back-to-back
@@ -210,6 +217,7 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "substrate compile: evaluate KSI indicators: %v\n", err)
 		return 2
 	}
+	coverage := fedramp20x.Coverage(ksiResults)
 
 	// Every parse, map, and validate step above must succeed before any
 	// of it touches --out. Writing runs entirely against a sibling
@@ -266,6 +274,10 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "substrate compile: %v\n", err)
 		return 2
 	}
+	if err := writeArtifact(tmpOut, "coverage.json", coverage); err != nil {
+		fmt.Fprintf(stderr, "substrate compile: %v\n", err)
+		return 2
+	}
 
 	// Publish tmpOut at *out - see publishOutput's own doc comment for
 	// why this is two renames with a restore path, not a single
@@ -280,10 +292,10 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "substrate compile: warning: %s\n", warning)
 	}
 
-	fmt.Fprintf(stdout, "parsed %d terraform resource(s), %s, and %s from %s%s; compiled %d evidence node(s) and %d edge(s); evaluated %d KSI indicator(s): %s\n",
+	fmt.Fprintf(stdout, "parsed %d terraform resource(s), %s, and %s from %s%s; compiled %d evidence node(s) and %d edge(s); evaluated %d KSI indicator(s): %s; coverage: %s\n",
 		len(tfGraph.Resources), resourceCount(k8sDir, len(k8sGraph.Resources), "kubernetes resource"),
 		resourceCount(ghaDir, len(ghaGraph.Workflows), "github actions workflow"), *source, runtimeSummary, len(evidence.Nodes), len(evidence.Edges),
-		len(ksiResults), statusTally(ksiResults))
+		len(ksiResults), statusTally(ksiResults), formatCoverage(coverage.Overall))
 	return 0
 }
 
@@ -384,6 +396,16 @@ func statusTally(results []fedramp20x.IndicatorResult) string {
 		return "none"
 	}
 	return strings.Join(terms, ", ")
+}
+
+// formatCoverage renders FR-6.7's coverage bucket for the summary line.
+// Unlike statusTally, a zero term is never omitted here: "0 automated, 0
+// human-attested, N not visible" is exactly the honest message the
+// coverage report exists to surface, not clutter to hide - see
+// docs/adr/0012.
+func formatCoverage(b fedramp20x.CoverageBucket) string {
+	return fmt.Sprintf("%d automated, %d human-attested, %d not visible (%.1f%% of %d applicable)",
+		b.Automated, b.HumanAttested, b.NotVisible, b.PercentAutomated, b.Applicable)
 }
 
 // resourceCount renders a frontend's parsed count for the summary line,

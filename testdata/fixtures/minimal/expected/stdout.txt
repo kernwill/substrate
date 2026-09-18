@@ -1,1 +1,1 @@
-parsed 4 terraform resource(s), 2 kubernetes resource(s), and 1 github actions workflow(s) from ../../testdata/fixtures/minimal; compiled 8 evidence node(s) and 0 edge(s); evaluated 46 KSI indicator(s): 46 undetermined
+parsed 4 terraform resource(s), 2 kubernetes resource(s), and 1 github actions workflow(s) from ../../testdata/fixtures/minimal; compiled 8 evidence node(s) and 0 edge(s); evaluated 46 KSI indicator(s): 46 undetermined; coverage: 0 automated, 0 human-attested, 46 not visible (0.0% of 46 applicable)
