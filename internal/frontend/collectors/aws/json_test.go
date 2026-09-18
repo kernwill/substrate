@@ -120,6 +120,62 @@ func TestIAMGraphJSONRoundTrip(t *testing.T) {
 	}
 }
 
+// TestCloudTrailGraphJSONRoundTrip mirrors TestS3GraphJSONRoundTrip /
+// TestIAMGraphJSONRoundTrip - see that test's doc comment for why this
+// guard exists (substrate collect writes CloudTrailGraph to disk,
+// substrate compile reads it back in, and no other test in this
+// package asserts on the serialized form).
+func TestCloudTrailGraphJSONRoundTrip(t *testing.T) {
+	want := CloudTrailGraph{Trails: []Trail{
+		{
+			Name: "alpha",
+			Config: &TrailConfig{
+				IsMultiRegionTrail:       true,
+				IsOrganizationTrail:      true,
+				LogFileValidationEnabled: true,
+				Provenance:               testProvenanceRecord(),
+			},
+			Logging:                   &TrailLogging{IsLogging: true, Provenance: testProvenanceRecord()},
+			KMSKeyID:                  "arn:aws:kms:us-east-1:123456789012:key/abc",
+			CloudWatchLogsLogGroupARN: "arn:aws:logs:us-east-1:123456789012:log-group:trail-alpha",
+		},
+		{
+			Name:    "delta",
+			Config:  &TrailConfig{Provenance: unresolvedProvenanceRecord()},
+			Logging: &TrailLogging{Provenance: unresolvedProvenanceRecord()},
+		},
+	}}
+
+	raw, err := json.Marshal(want)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	var got CloudTrailGraph
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if len(got.Trails) != len(want.Trails) {
+		t.Fatalf("got %d trails, want %d", len(got.Trails), len(want.Trails))
+	}
+	for i := range want.Trails {
+		if got.Trails[i].Name != want.Trails[i].Name {
+			t.Errorf("trail %d: Name = %q, want %q", i, got.Trails[i].Name, want.Trails[i].Name)
+		}
+		if !reflect.DeepEqual(*got.Trails[i].Config, *want.Trails[i].Config) {
+			t.Errorf("trail %d: Config = %+v, want %+v", i, got.Trails[i].Config, want.Trails[i].Config)
+		}
+		if !reflect.DeepEqual(*got.Trails[i].Logging, *want.Trails[i].Logging) {
+			t.Errorf("trail %d: Logging = %+v, want %+v", i, got.Trails[i].Logging, want.Trails[i].Logging)
+		}
+		if got.Trails[i].KMSKeyID != want.Trails[i].KMSKeyID {
+			t.Errorf("trail %d: KMSKeyID = %q, want %q", i, got.Trails[i].KMSKeyID, want.Trails[i].KMSKeyID)
+		}
+		if got.Trails[i].CloudWatchLogsLogGroupARN != want.Trails[i].CloudWatchLogsLogGroupARN {
+			t.Errorf("trail %d: CloudWatchLogsLogGroupARN = %q, want %q", i, got.Trails[i].CloudWatchLogsLogGroupARN, want.Trails[i].CloudWatchLogsLogGroupARN)
+		}
+	}
+}
+
 func testProvenanceRecord() provenance.Record {
 	r := observedRecord("test/v0", "test:API", map[string]string{"k": "v"}, testObservedAt)
 	return r

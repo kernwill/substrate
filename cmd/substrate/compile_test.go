@@ -169,7 +169,8 @@ func TestCompileIngestsRuntimeEvidence(t *testing.T) {
 		},
 	}}}
 	iamGraph := &awscollectors.IAMGraph{}
-	if _, err := writeCollectOutput(runtimeDir, s3Graph, iamGraph); err != nil {
+	cloudTrailGraph := &awscollectors.CloudTrailGraph{}
+	if _, err := writeCollectOutput(runtimeDir, s3Graph, iamGraph, cloudTrailGraph); err != nil {
 		t.Fatalf("writeCollectOutput: %v", err)
 	}
 
@@ -179,7 +180,7 @@ func TestCompileIngestsRuntimeEvidence(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("runCompile exit code = %d, want 0; stderr: %s", code, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "ingested runtime evidence for 1 s3 bucket(s) and 0 iam user(s)") {
+	if !strings.Contains(stdout.String(), "ingested runtime evidence for 1 s3 bucket(s), 0 iam user(s), and 0 cloudtrail trail(s)") {
 		t.Errorf("stdout = %q, want it to mention the ingested runtime evidence counts", stdout.String())
 	}
 

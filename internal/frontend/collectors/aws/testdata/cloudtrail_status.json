@@ -1,0 +1,6 @@
+{
+  "alpha": {"is_logging": true},
+  "beta": {"is_logging": false},
+  "delta": {"is_logging": true},
+  "gamma": {"error": "AccessDenied: user is not authorized to perform cloudtrail:GetTrailStatus"}
+}

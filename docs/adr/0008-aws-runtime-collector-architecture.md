@@ -166,6 +166,42 @@ not `Unresolved`. "An API error means unresolved" is therefore not a
 rule this package can apply blindly; each error shape has to be checked
 against what the service actually documents it to mean.
 
+**Confirmed by collector three (CloudTrail, FR-3.2), added shortly
+after.** Same narrow interface (`CloudTrailAPI`), same
+`testdata/*.json` fixtures, same always-record-a-fact discipline. One
+real shape difference from S3/IAM: `DescribeTrails` is a single
+account/Region-wide call, not a per-item one, so `CollectCloudTrail`
+only fans `collectConcurrent` out over the second call
+(`GetTrailStatus`, one per trail) rather than every field like S3 and
+IAM do.
+
+A genuinely new nuance, not anticipated by either prior collector:
+`DescribeTrails`' `IncludeShadowTrails` parameter defaults to `true`,
+and at that default a multi-region trail (or an organization trail
+replicated into a member account) comes back as an extra "shadow" row
+for the current Region on top of its real one - which would have
+produced two IR nodes with two different `awsNodeID` values for what is
+actually one trail. `describeTrails` sets it to `false` explicitly.
+This is the same class of bug S3's `GetPublicAccessBlock` nuance and
+IAM's `NoSuchEntity` nuance already are - a live-API behavior neither
+prior collector's design anticipated - but it would have produced
+silently *duplicated*, not silently *missing or wrong*, evidence; worth
+recording as its own variant of "the live API has a documented
+behavior nobody had reason to check for until this specific collector."
+
+CloudTrail is also this package's first control assignment with no
+Terraform-side (Declared) counterpart to reuse from
+`internal/frontend/controls` - `cloudTrailAuditRecordGeneration` (AU-12)
+and `cloudTrailLogFileValidation` (AU-9), in `cloudtrail_ir.go`, are new
+compliance content, not an Observed application of an already-reviewed
+Declared mapping. Retention - the third concern FR-3.2 names alongside
+configuration and log file integrity validation - is deliberately not
+collected at all: it lives on the log destination (an S3 bucket's
+lifecycle policy, or CloudWatch Logs' own retention setting), a
+different collection surface than this collector's own trail-config and
+trail-status calls, tracked as open follow-on work rather than guessed
+at.
+
 Negative. `docs/aws-readonly-policy.json` will need a statement added for
 every future collector, in lockstep with the code - a process discipline,
 not something enforced mechanically yet. Nothing checks today that the

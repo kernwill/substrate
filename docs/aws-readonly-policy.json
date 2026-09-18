@@ -32,6 +32,15 @@
         "iam:ListAccessKeys"
       ],
       "Resource": ["arn:*:iam::*:user/*"]
+    },
+    {
+      "Sid": "SubstrateCloudTrailCollector",
+      "Effect": "Allow",
+      "Action": [
+        "cloudtrail:DescribeTrails",
+        "cloudtrail:GetTrailStatus"
+      ],
+      "Resource": "*"
     }
   ]
 }

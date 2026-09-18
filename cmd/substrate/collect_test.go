@@ -11,16 +11,17 @@ import (
 )
 
 // TestWriteCollectOutput exercises the real logic in this command
-// (writing and atomically publishing collect's two artifacts) against
+// (writing and atomically publishing collect's three artifacts) against
 // synthetic graphs, with no AWS credentials or client involved -
-// CollectS3 and CollectIAM already have their own thorough,
-// fixture-backed tests in internal/frontend/collectors/aws.
+// CollectS3, CollectIAM, and CollectCloudTrail already have their own
+// thorough, fixture-backed tests in internal/frontend/collectors/aws.
 func TestWriteCollectOutput(t *testing.T) {
 	out := filepath.Join(t.TempDir(), "out")
 	s3Graph := &awscollectors.S3Graph{Buckets: []awscollectors.Bucket{{Name: "example-bucket"}}}
 	iamGraph := &awscollectors.IAMGraph{Users: []awscollectors.IAMUser{{Name: "example-user"}}}
+	cloudTrailGraph := &awscollectors.CloudTrailGraph{Trails: []awscollectors.Trail{{Name: "example-trail"}}}
 
-	warning, err := writeCollectOutput(out, s3Graph, iamGraph)
+	warning, err := writeCollectOutput(out, s3Graph, iamGraph, cloudTrailGraph)
 	if err != nil {
 		t.Fatalf("writeCollectOutput: %v", err)
 	}
@@ -52,6 +53,18 @@ func TestWriteCollectOutput(t *testing.T) {
 		t.Errorf("%s contents = %+v, want one user named example-user", awsIAMArtifactName, gotIAM)
 	}
 
+	raw, err = os.ReadFile(filepath.Join(out, awsCloudTrailArtifactName))
+	if err != nil {
+		t.Fatalf("read %s: %v", awsCloudTrailArtifactName, err)
+	}
+	var gotCloudTrail awscollectors.CloudTrailGraph
+	if err := json.Unmarshal(raw, &gotCloudTrail); err != nil {
+		t.Fatalf("parse %s: %v", awsCloudTrailArtifactName, err)
+	}
+	if len(gotCloudTrail.Trails) != 1 || gotCloudTrail.Trails[0].Name != "example-trail" {
+		t.Errorf("%s contents = %+v, want one trail named example-trail", awsCloudTrailArtifactName, gotCloudTrail)
+	}
+
 	if _, err := os.Stat(out + ".tmp"); !os.IsNotExist(err) {
 		t.Errorf("out+\".tmp\" = %v, want it gone after a successful write", err)
 	}
@@ -64,11 +77,12 @@ func TestWriteCollectOutputRerunLeavesNoBackupDirectory(t *testing.T) {
 	out := filepath.Join(t.TempDir(), "out")
 	empty := &awscollectors.S3Graph{}
 	emptyIAM := &awscollectors.IAMGraph{}
+	emptyCloudTrail := &awscollectors.CloudTrailGraph{}
 
-	if _, err := writeCollectOutput(out, empty, emptyIAM); err != nil {
+	if _, err := writeCollectOutput(out, empty, emptyIAM, emptyCloudTrail); err != nil {
 		t.Fatalf("first writeCollectOutput: %v", err)
 	}
-	if _, err := writeCollectOutput(out, empty, emptyIAM); err != nil {
+	if _, err := writeCollectOutput(out, empty, emptyIAM, emptyCloudTrail); err != nil {
 		t.Fatalf("second writeCollectOutput: %v", err)
 	}
 

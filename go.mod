@@ -4,6 +4,7 @@ go 1.27
 
 require (
 	github.com/aws/aws-sdk-go-v2/config v1.33.5
+	github.com/aws/aws-sdk-go-v2/service/cloudtrail v1.65.0
 	github.com/aws/aws-sdk-go-v2/service/iam v1.64.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.113.1
 	github.com/dlclark/regexp2 v1.12.0

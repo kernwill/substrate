@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/cloudtrail"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"golang.org/x/sync/errgroup"
@@ -16,14 +17,16 @@ import (
 	awscollectors "github.com/kernwill/substrate/internal/frontend/collectors/aws"
 )
 
-// awsS3ArtifactName and awsIAMArtifactName are collect's own two output
-// filenames - written here, read back by compile.go's --runtime
-// ingestion, and asserted against by both commands' tests. One shared
-// definition rather than each site repeating the literal string, so a
-// rename can't silently desync collect's writer from compile's reader.
+// awsS3ArtifactName, awsIAMArtifactName, and awsCloudTrailArtifactName
+// are collect's own output filenames - written here, read back by
+// compile.go's --runtime ingestion, and asserted against by both
+// commands' tests. One shared definition rather than each site
+// repeating the literal string, so a rename can't silently desync
+// collect's writer from compile's reader.
 const (
-	awsS3ArtifactName  = "aws_s3.json"
-	awsIAMArtifactName = "aws_iam.json"
+	awsS3ArtifactName         = "aws_s3.json"
+	awsIAMArtifactName        = "aws_iam.json"
+	awsCloudTrailArtifactName = "aws_cloudtrail.json"
 )
 
 // runCollect implements "substrate collect --out <dir>" (FR-3: runtime
@@ -44,9 +47,10 @@ const (
 // (config.LoadDefaultConfig) - see internal/frontend/collectors/aws's
 // own doc.go for why credential handling is entirely the caller's (and
 // ultimately the customer's) responsibility, never substrate's own.
-// Runs every runtime collector this package has today (S3, IAM; more
-// will follow per docs/adr/0008's roadmap) and writes each one's raw
-// output to <out>/aws_s3.json / <out>/aws_iam.json, published the same
+// Runs every runtime collector this package has today (S3, IAM,
+// CloudTrail; more will follow per docs/adr/0008's roadmap) and writes
+// each one's raw output to <out>/aws_s3.json / <out>/aws_iam.json /
+// <out>/aws_cloudtrail.json, published the same
 // atomic way compile's own --out is (publishOutput/publishFromTmp,
 // compile.go) - a partial failure must not leave --out holding one
 // collector's fresh output next to another's stale or missing one.
@@ -74,13 +78,14 @@ func runCollect(args []string, stdout, stderr io.Writer) int {
 	}
 	observedAt := time.Now().UTC()
 
-	// S3 and IAM are independent services with no data dependency
-	// between them, so collect them concurrently rather than paying
-	// their full latencies back to back - the same reasoning
+	// S3, IAM, and CloudTrail are independent services with no data
+	// dependency between them, so collect them concurrently rather than
+	// paying their full latencies back to back - the same reasoning
 	// concurrent.go's collectConcurrent already applies one level down,
 	// inside each collector, to its own per-item API calls.
 	var s3Graph *awscollectors.S3Graph
 	var iamGraph *awscollectors.IAMGraph
+	var cloudTrailGraph *awscollectors.CloudTrailGraph
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		var err error
@@ -98,12 +103,20 @@ func runCollect(args []string, stdout, stderr io.Writer) int {
 		}
 		return nil
 	})
+	g.Go(func() error {
+		var err error
+		cloudTrailGraph, err = awscollectors.CollectCloudTrail(gctx, cloudtrail.NewFromConfig(cfg), observedAt)
+		if err != nil {
+			return fmt.Errorf("collect cloudtrail: %w", err)
+		}
+		return nil
+	})
 	if err := g.Wait(); err != nil {
 		fmt.Fprintf(stderr, "substrate collect: %v\n", err)
 		return 2
 	}
 
-	warning, err := writeCollectOutput(*out, s3Graph, iamGraph)
+	warning, err := writeCollectOutput(*out, s3Graph, iamGraph, cloudTrailGraph)
 	if err != nil {
 		fmt.Fprintf(stderr, "substrate collect: %v\n", err)
 		return 2
@@ -112,8 +125,8 @@ func runCollect(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "substrate collect: warning: %s\n", warning)
 	}
 
-	fmt.Fprintf(stdout, "collected %d s3 bucket(s) and %d iam user(s) into %s\n",
-		len(s3Graph.Buckets), len(iamGraph.Users), *out)
+	fmt.Fprintf(stdout, "collected %d s3 bucket(s), %d iam user(s), and %d cloudtrail trail(s) into %s\n",
+		len(s3Graph.Buckets), len(iamGraph.Users), len(cloudTrailGraph.Trails), *out)
 	return 0
 }
 
@@ -130,7 +143,7 @@ func runCollect(args []string, stdout, stderr io.Writer) int {
 // AWS credentials or a fake client at the CLI layer; CollectS3 and
 // CollectIAM already have their own thorough, fixture-backed tests one
 // level down.
-func writeCollectOutput(out string, s3Graph *awscollectors.S3Graph, iamGraph *awscollectors.IAMGraph) (warning string, err error) {
+func writeCollectOutput(out string, s3Graph *awscollectors.S3Graph, iamGraph *awscollectors.IAMGraph, cloudTrailGraph *awscollectors.CloudTrailGraph) (warning string, err error) {
 	tmpOut := out + ".tmp"
 	if err := os.RemoveAll(tmpOut); err != nil {
 		return "", fmt.Errorf("clear stale %s: %w", tmpOut, err)
@@ -149,6 +162,9 @@ func writeCollectOutput(out string, s3Graph *awscollectors.S3Graph, iamGraph *aw
 		return "", err
 	}
 	if err := writeArtifact(tmpOut, awsIAMArtifactName, iamGraph); err != nil {
+		return "", err
+	}
+	if err := writeArtifact(tmpOut, awsCloudTrailArtifactName, cloudTrailGraph); err != nil {
 		return "", err
 	}
 

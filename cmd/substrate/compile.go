@@ -64,8 +64,9 @@ import (
 //
 // --runtime <dir>, if given, is a directory previously written by
 // "substrate collect --out <dir>" (collect.go): this command reads
-// <runtime>/aws_s3.json and <runtime>/aws_iam.json back in, maps them
-// through the same awscollectors.ToIR/IAMToIR this package's own
+// <runtime>/aws_s3.json, <runtime>/aws_iam.json, and
+// <runtime>/aws_cloudtrail.json back in, maps them through the same
+// awscollectors.ToIR/IAMToIR/CloudTrailToIR this package's own
 // unit tests exercise, and merges their nodes into the evidence graph
 // alongside the three static frontends' - the Observed half of FR-4.2,
 // next to everything above's Declared half. Omitting --runtime is not a
@@ -186,6 +187,11 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "substrate compile: read runtime evidence: %v\n", err)
 			return 2
 		}
+		cloudTrailGraph, err := readArtifact[awscollectors.CloudTrailGraph](filepath.Join(*runtime, awsCloudTrailArtifactName))
+		if err != nil {
+			fmt.Fprintf(stderr, "substrate compile: read runtime evidence: %v\n", err)
+			return 2
+		}
 		s3IR, err := awscollectors.ToIR(s3Graph)
 		if err != nil {
 			fmt.Fprintf(stderr, "substrate compile: map aws s3 to evidence graph: %v\n", err)
@@ -196,10 +202,16 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "substrate compile: map aws iam to evidence graph: %v\n", err)
 			return 2
 		}
+		cloudTrailIR, err := awscollectors.CloudTrailToIR(cloudTrailGraph)
+		if err != nil {
+			fmt.Fprintf(stderr, "substrate compile: map aws cloudtrail to evidence graph: %v\n", err)
+			return 2
+		}
 		evidence.Nodes = append(evidence.Nodes, s3IR.Nodes...)
 		evidence.Nodes = append(evidence.Nodes, iamIR.Nodes...)
-		runtimeSummary = fmt.Sprintf("; ingested runtime evidence for %d s3 bucket(s) and %d iam user(s) from %s",
-			len(s3Graph.Buckets), len(iamGraph.Users), *runtime)
+		evidence.Nodes = append(evidence.Nodes, cloudTrailIR.Nodes...)
+		runtimeSummary = fmt.Sprintf("; ingested runtime evidence for %d s3 bucket(s), %d iam user(s), and %d cloudtrail trail(s) from %s",
+			len(s3Graph.Buckets), len(iamGraph.Users), len(cloudTrailGraph.Trails), *runtime)
 	}
 
 	if err := evidence.Validate(); err != nil {
