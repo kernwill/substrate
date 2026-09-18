@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -96,5 +97,51 @@ func TestCommitTimeFailsOnNonGitDirectory(t *testing.T) {
 	}
 	if _, err := CommitTime(dir, "a.txt"); err == nil {
 		t.Error("CommitTime succeeded outside a git repository, want error")
+	}
+}
+
+// TestCommitTimeFailsOnShallowClone is a regression test for the bug
+// this project's own CI hit: in a shallow clone, `git log -1 -- <file>`
+// does not error - it silently returns the shallow boundary commit's
+// date for a.txt, even though that commit only ever touched b.txt, never
+// a.txt. CommitTime must refuse outright (checkNotShallow, vcs.go)
+// rather than let that wrong-but-plausible value through, the same
+// "fail visible, never fail silent" reasoning as the untracked-file and
+// non-git-directory cases above.
+func TestCommitTimeFailsOnShallowClone(t *testing.T) {
+	origin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(origin, "a.txt"), []byte("hello"), 0o644); err != nil {
+		t.Fatalf("write a.txt: %v", err)
+	}
+	initGitRepo(t, origin)
+
+	// A second commit that never touches a.txt, so a shallow clone's
+	// only visible commit is one that has nothing to do with a.txt's
+	// real last-modified time.
+	if err := os.WriteFile(filepath.Join(origin, "b.txt"), []byte("unrelated"), 0o644); err != nil {
+		t.Fatalf("write b.txt: %v", err)
+	}
+	initGitRepo(t, origin)
+
+	wantUnaffected, err := CommitTime(origin, "a.txt")
+	if err != nil {
+		t.Fatalf("CommitTime on full clone: %v", err)
+	}
+
+	clone := filepath.Join(t.TempDir(), "shallow")
+	// git ignores --depth for a plain local path clone ("--depth is
+	// ignored in local clones; use file:// instead") - the file:// URL
+	// form is required to actually exercise a shallow clone here.
+	cmd := exec.Command("git", "clone", "--depth", "1", "file://"+origin, clone)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git clone --depth 1: %v\n%s", err, out)
+	}
+
+	got, err := CommitTime(clone, "a.txt")
+	if err == nil {
+		t.Fatalf("CommitTime on shallow clone succeeded with %s, want a loud error (the correct, full-clone value is %s - a shallow clone must never silently return something else)", got, wantUnaffected)
+	}
+	if !strings.Contains(err.Error(), "shallow") {
+		t.Errorf("CommitTime error = %q, want it to mention the clone is shallow", err)
 	}
 }

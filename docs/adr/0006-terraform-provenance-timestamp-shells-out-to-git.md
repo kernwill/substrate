@@ -116,3 +116,35 @@ CI checks out a shallow or detached clone where `git log` behaves
 unexpectedly, for instance), revisit toward option 2 (a pure-Go git
 implementation) rather than silently degrading to option 3 (a
 placeholder) under pressure.
+
+**2026-09-18: the anticipated shallow-clone case above stopped being
+hypothetical.** This project's own CI (`actions/checkout@v5`, default
+`fetch-depth: 1`) started failing `TestGoldenCompile` once a commit
+landed on `main` that didn't touch `testdata/fixtures/minimal` -
+`git log -1 -- <file>` in a shallow clone doesn't error, it silently
+returns the shallow boundary commit's date for that file regardless of
+whether that commit ever touched it, because there is no earlier
+history to walk back through and disprove it. That is exactly the
+wrong-but-plausible, no-error outcome CLAUDE.md's "fail visible, never
+fail silent" exists to rule out, and it is not confined to this
+project's own tests: `fetch-depth: 1` is actions/checkout's own
+default, meaning any real customer whose CI does a normal shallow
+checkout gets a silently wrong (non-reproducible, checkout-time-ish)
+provenance timestamp for every Terraform/Kubernetes/GitHub Actions file
+in their repo.
+
+Fixed by making `vcs.CommitTime` refuse outright: `checkNotShallow`
+(`internal/frontend/vcs/vcs.go`) checks `git rev-parse
+--is-shallow-repository` before ever calling `git log`, and returns a
+loud error naming the fix (`fetch-depth: 0`, or `git fetch
+--unshallow`) instead of a value. This project's own
+`.github/workflows/ci.yml` was updated to `fetch-depth: 0` to match.
+Deliberately not the pure-Go-git alternative (option 2) this ADR's
+"Consequences" section named as the fallback: a shallow clone by
+definition does not have the commit that actually touched an
+untouched-by-the-tip file, so no git implementation, Go or otherwise,
+can recover a correct timestamp from one - the only honest choices are
+"refuse" or "silently wrong," and refusing is the one this project's
+own principles require. `fetch-depth`/`GIT_DEPTH` in a customer's own
+CI is now a real, documented operational requirement for
+`substrate compile`, not just an internal CI detail.

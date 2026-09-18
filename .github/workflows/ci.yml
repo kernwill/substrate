@@ -9,6 +9,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          # Full history, not the default shallow (fetch-depth: 1):
+          # provenance timestamps (docs/adr/0006) are last-commit times
+          # read via `git log`, which silently returns the shallow
+          # boundary commit's date for ANY file once history runs out -
+          # even one that commit never touched. See vcs.CommitTime's
+          # checkNotShallow, which now refuses to run against a shallow
+          # clone rather than let that happen quietly.
+          fetch-depth: 0
       - uses: actions/setup-go@v6
         with:
           go-version: '1.27'
