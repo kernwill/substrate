@@ -352,11 +352,27 @@ Implements FR-2 through FR-7.
 
 ### 17.1 Exit criteria
 
-1. End-to-end run against a real design partner repository and AWS account, producing a complete 20x Class C package
-2. A FedRAMP-recognized assessor reviews the output and states in writing what they would and would not accept. Schedule this before the code is finished
-3. Coverage report shows at least 60% of applicable rules evidenced automatically
+Revised 2026-09-18: design-partner and paying-customer dependencies
+removed from Phase 1 and Phase 2 exit criteria (see §18.1's own note and
+§31 for the full reasoning). Self-testing against a self-owned
+repository and AWS account substitutes for a design partner throughout
+both phases; all customer- and design-partner-facing outreach is
+deliberately deferred until Phase 3's complete product (hosted plane
+plus UI) exists to show. A design partner materializing opportunistically
+before then is a welcome bonus, never a blocking requirement.
+
+1. End-to-end run against a real repository and AWS account (self-owned,
+   or a design partner's if one exists), producing a complete 20x Class C
+   package
+2. A FedRAMP-recognized assessor reviews the output and states in writing
+   what they would and would not accept `[deferred]` - needs external
+   outreach, which stealth mode currently rules out; revisit once the
+   product is being shopped around (Phase 3)
+3. Coverage report shows at least 60% of applicable rules evidenced
+   automatically
 4. Reproducibility holds
-5. CI gate running in at least one design partner pipeline
+5. CI gate running against a real pipeline (self-owned, or a design
+   partner's if one exists)
 
 ### 17.2 Out of scope in Phase 1
 
@@ -364,19 +380,52 @@ Implements FR-2 through FR-7.
 
 ## 18. Phase 2: Continuous assurance, 3 to 4 months
 
-Implements FR-8 and FR-9. This is where the recurring revenue lives, because CR26 put 76 of its rules in ongoing assurance.
+Implements FR-8 and FR-9. This is where the recurring revenue lives, because CR26 put 76 of its rules in ongoing assurance. Revenue is realized in Phase 3, not required to exit this one - see the revision note below.
 
 ### 18.1 Exit criteria
 
-1. A design partner has run continuous assurance for a full quarter without manual intervention
-2. At least one significant change detected, classified, approved, and notified through the tool
+Revised 2026-09-18: this phase's original exit criteria required a
+design partner (criterion 1, as originally written) and closed with
+"first paying customer." Neither is required to exit Phase 2 anymore.
+The founder's own assessment: a paying customer is very unlikely to
+adopt before a UI exists, and chasing one prematurely here would either
+stall the phase indefinitely or distort its scope toward one early
+adopter's idiosyncrasies (exactly the risk §31's own "still open" design-
+partner item already warned about). Self-testing substitutes: run
+continuous assurance against a self-owned codebase for a real quarter,
+and prove the tool actually detects drift by deliberately introducing a
+regression, confirming the tool catches it, remediating it, and
+confirming a re-run picks up the fix - the same round-trip a real
+customer's day-to-day usage would exercise, without needing one to
+exist yet. Customer- and design-partner-facing work resumes in Phase 3,
+once the complete product (hosted plane plus UI) is ready to shop
+around.
+
+1. Continuous assurance run for a full quarter without manual
+   intervention, against a self-owned codebase (a design partner's, if
+   one exists by then, but not required)
+2. At least one significant change detected, classified, approved, and
+   notified through the tool - proven with a deliberately introduced
+   regression: confirm detection, remediate, confirm a re-run reflects
+   the fix
 3. A ruleset version bump handled end to end
-4. Onboarding agent measured: time from repository access to draft mapping, with accuracy numbers
-5. First paying customer
+4. Onboarding agent measured: time from repository access to draft
+   mapping, with accuracy numbers
 
 ## 19. Phase 3: Hosted control plane, 4 to 6 months, year two
 
-Start only after Phase 2 has a paying customer.
+Revised 2026-09-18: previously gated on "Phase 2 has a paying customer."
+That gate is removed - see §18.1's own revision note for why. Phase 3
+now starts as soon as Phase 2's engineering exit criteria are met, no
+customer required. This is deliberate re-sequencing, not a relaxed bar:
+the founder's assessment is that this phase's own deliverable - the
+posture dashboard and assessor workspace below, i.e. the product's
+first real UI - is itself a precondition for landing a paying customer
+in this market, not a reward for having already landed one. Customer-
+and design-partner-facing outreach (deferred since Phase 0, per the
+project's stealth-mode posture) resumes once this phase's product is
+complete enough to demonstrate, and "first paying customer" moves here
+as this phase's own exit criterion instead of Phase 2's.
 
 Architecture constraint and the whole point: the hosted plane receives normalized findings pushed by the customer's CLI. Never credentials, never raw source, never collection on our infrastructure.
 
@@ -393,6 +442,16 @@ Architecture constraint and the whole point: the hosted plane receives normalize
 Rejected: full credential-custody SaaS. It would make us a processor of federal security data, likely forcing our own authorization early, and puts a breach-ends-the-business risk on a three-person company.
 
 Our own FedRAMP Class A certification becomes both necessary and possible here, since we finally have a hosted service worth certifying.
+
+### 19.1 Exit criteria
+
+1. FR-10.1 through FR-10.6 complete, FR-10.7 if capacity allows
+2. The product (CLI plus hosted dashboard/assessor workspace) is
+   demonstrable end to end against a self-owned codebase, ready to show
+   a prospect without caveats
+3. First paying customer - moved here from Phase 2 (§18.1's revision
+   note); this is the phase where outreach resumes and where a UI
+   actually exists to show
 
 ## 20. Phase 4: Second backend, target 8 weeks
 
@@ -514,10 +573,11 @@ Resolved:
 - Backend two is CMMC and 800-171, chosen as a thesis test. Section 20.
 - Deployment is CLI-first, hosted findings-only plane in year two. Section 19.
 - Class A subject is the eventual hosted control plane, never an earlier or hollow entity stood up solely to hold a badge. `docs/adr/0005-class-a-certification-subject.md` (T-015).
+- 2026-09-18: customer and design-partner outreach, paused since Phase 0's stealth-mode decision, stays paused through Phase 1 and Phase 2 rather than resuming partway through - both phases' exit criteria no longer depend on a design partner or a paying customer (§17.1, §18.1). Self-testing against a self-owned codebase substitutes, including a deliberate-regression-then-remediate-then-reverify loop that exercises the same round-trip a real customer's usage would. Outreach resumes in Phase 3, once the hosted plane and its UI - the product's actual precondition for landing a customer in this market, per the founder's own read - are real (§19). "First paying customer" moved from Phase 2's exit criteria to Phase 3's.
 
 Still open:
 
-1. Design partner. Ideal is a commercial SaaS company facing the 2027 deadlines. If the network produces a government partner instead, take it for revenue but find a commercial one too, or Phase 1 requirements drift toward one customer.
+1. Design partner. Deliberately not being pursued right now (see the 2026-09-18 resolved item above) - revisit once Phase 3's product exists to show. Ideal is a commercial SaaS company facing the 2027 deadlines. If the network produces a government partner instead, take it for revenue but find a commercial one too, or Phase 1 requirements drift toward one customer.
 2. Services bridge. Recommend yes, capped at a fixed fraction of the week, scoped as FedRAMP package work so it doubles as research.
 3. Company and product name, and domain. `substrate` is a working placeholder. Run a trademark search.
 4. Entity and jurisdiction. Needed before the SOC 2 engagement.
