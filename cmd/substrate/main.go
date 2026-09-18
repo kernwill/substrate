@@ -19,6 +19,7 @@
 //	substrate compile       --source <dir> --out <dir> [--runtime <dir>]
 //	substrate gate          --baseline <file> --current <file> [--nodes <file>] [--severity error|warn] [--pr-comment]
 //	substrate baseline update --current <file> --out <file>
+//	substrate ir query      --dir <out>/ir --control AC-2 [--format text|json]
 //
 // collect and compile are deliberately separate (FR-3 runtime
 // collection vs FR-2/FR-5/FR-6 static parsing, the evidence graph, and
@@ -39,9 +40,10 @@
 // information the CI environment already provides. See gate.go's,
 // github.go's, and baseline.go's own doc comments, and docs/adr/0011.
 //
-// Planned commands (see docs/REQUIREMENTS.md):
-//
-//	substrate ir query      --control AC-2
+// ir query is FR-5.5/FR-4.6: given a directory a prior "substrate
+// compile" wrote its ir/ output to, returns every fact (node, and any
+// attestation, if that file exists) bearing on a given control, each
+// with its full provenance - see irquery.go's own doc comment.
 package main
 
 import (
@@ -66,6 +68,8 @@ func main() {
 		os.Exit(runGate(os.Args[2:], os.Stdout, os.Stderr))
 	case "baseline":
 		os.Exit(runBaseline(os.Args[2:], os.Stdout, os.Stderr))
+	case "ir":
+		os.Exit(runIR(os.Args[2:], os.Stdout, os.Stderr))
 	default:
 		fmt.Fprintf(os.Stderr, "substrate: %q not implemented yet\n", os.Args[1])
 		os.Exit(2)
