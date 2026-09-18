@@ -2,9 +2,9 @@
   "overall": {
     "automated": 0,
     "human_attested": 0,
-    "not_visible": 46,
-    "not_applicable": 0,
-    "applicable": 46,
+    "not_visible": 45,
+    "not_applicable": 1,
+    "applicable": 45,
     "percent_automated": 0
   },
   "families": [
@@ -30,9 +30,9 @@
       "family": "CNA",
       "automated": 0,
       "human_attested": 0,
-      "not_visible": 8,
-      "not_applicable": 0,
-      "applicable": 8,
+      "not_visible": 7,
+      "not_applicable": 1,
+      "applicable": 7,
       "percent_automated": 0
     },
     {

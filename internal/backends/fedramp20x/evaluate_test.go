@@ -247,7 +247,7 @@ func TestEvaluateUnimplementedFamiliesAreUndetermined(t *testing.T) {
 		t.Fatalf("Evaluate: %v", err)
 	}
 
-	implemented := map[string]bool{"SVC": true, "IAM": true}
+	implemented := map[string]bool{"SVC": true, "IAM": true, "CNA": true}
 	wantCount := map[string]int{}
 	for family, theme := range ds.KSI {
 		if implemented[family] {
@@ -417,6 +417,84 @@ func TestEvaluateEmptyGraphIAM(t *testing.T) {
 		}
 		if len(r.Evidence) != 0 {
 			t.Errorf("%s: Evidence = %v, want none", r.Indicator, r.Evidence)
+		}
+	}
+}
+
+// TestEvaluateCNAAgainstRealCollectors mirrors
+// TestEvaluateIAMAgainstRealCollectors for the third real family: fed
+// exactly the controls our current frontends and collectors evidence
+// today, KSI-CNA-MAT and KSI-CNA-RNT (the two with real overlap, via
+// SC-7.5) must land in the "missing IR evidence for control(s)" branch,
+// not the "no IR evidence collected for any control" branch every
+// other implemented-in-this-family indicator still hits - except
+// KSI-CNA-OFA, which has zero controls in the vendored dataset and
+// must come back not_applicable regardless of evidence.
+func TestEvaluateCNAAgainstRealCollectors(t *testing.T) {
+	ds := loadVendoredDataset(t)
+	g := ir.Graph{Nodes: []ir.Node{
+		testNode("terraform:aws_s3_bucket_public_access_block.example", "AC", 3, 0),
+		testNode("terraform:aws_s3_bucket_versioning.example", "CP", 9, 0),
+		testNode("terraform:aws_s3_bucket_server_side_encryption_configuration.example", "SC", 28, 1),
+		testNode("kubernetes:deployment.example", "CM", 7, 0),
+		testNode("kubernetes:networkpolicy.example", "SC", 7, 5),
+		testNode("github_actions:ci.yml#permissions", "AC", 6, 0),
+		testNode("github_actions:ci.yml#dependency-review", "SR", 11, 0),
+		testNode("aws:iam-user.example#mfa", "IA", 2, 0),
+		testNode("aws:iam-user.example#access-keys", "IA", 5, 0),
+	}}
+
+	results, err := Evaluate(context.Background(), ds, g)
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+
+	cnaTheme := ds.KSI["CNA"]
+	if len(cnaTheme.Indicators) == 0 {
+		t.Fatal("vendored dataset has no KSI-CNA indicators - test fixture assumption broken")
+	}
+
+	got := map[string]IndicatorResult{}
+	for _, r := range results {
+		if r.Family == "CNA" {
+			got[r.Indicator] = r
+		}
+	}
+	if len(got) != len(cnaTheme.Indicators) {
+		t.Fatalf("got %d CNA results, want one per indicator (%d)", len(got), len(cnaTheme.Indicators))
+	}
+
+	ofa, ok := got["KSI-CNA-OFA"]
+	if !ok {
+		t.Fatal("KSI-CNA-OFA missing from results")
+	}
+	if ofa.Status != StatusNotApplicable {
+		t.Errorf("KSI-CNA-OFA: status = %q, want %q", ofa.Status, StatusNotApplicable)
+	}
+
+	partial := []string{"KSI-CNA-MAT", "KSI-CNA-RNT"}
+	for _, name := range partial {
+		r, ok := got[name]
+		if !ok {
+			t.Fatalf("%s missing from results", name)
+		}
+		if r.Status != StatusUndetermined {
+			t.Errorf("%s: status = %q, want %q", name, r.Status, StatusUndetermined)
+		}
+		if !strings.HasPrefix(r.Reason, "missing IR evidence for control(s):") {
+			t.Errorf("%s: reason = %q, want the partial-coverage branch", name, r.Reason)
+		}
+	}
+
+	for name, r := range got {
+		if name == "KSI-CNA-OFA" || name == "KSI-CNA-MAT" || name == "KSI-CNA-RNT" {
+			continue
+		}
+		if r.Status != StatusUndetermined {
+			t.Errorf("%s: status = %q, want %q", name, r.Status, StatusUndetermined)
+		}
+		if r.Reason != "no IR evidence collected for any control this indicator references" {
+			t.Errorf("%s: reason = %q, want the no-evidence-at-all branch", name, r.Reason)
 		}
 	}
 }

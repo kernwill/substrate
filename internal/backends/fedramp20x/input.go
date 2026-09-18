@@ -62,7 +62,15 @@ func buildInput(g ir.Graph, theme rules.KSITheme) regoInput {
 
 	indicators := make(map[string]regoIndicator, len(theme.Indicators))
 	for name, ind := range theme.Indicators {
-		controls := append([]string(nil), ind.Controls...)
+		// make(..., 0, ...), never a nil slice from append([]string(nil)):
+		// an indicator with zero controls (e.g. KSI-CNA-OFA) must serialize
+		// as "controls": [], not "controls": null - every family module's
+		// count(indicator.controls) is undefined, not 0, against null in
+		// Rego (confirmed directly: count(null) evaluates to no result at
+		// all), which silently drops that indicator from every branch of
+		// "results" rather than landing it in the not_applicable one.
+		controls := make([]string, 0, len(ind.Controls))
+		controls = append(controls, ind.Controls...)
 		sort.Strings(controls)
 		indicators[name] = regoIndicator{Controls: controls}
 	}

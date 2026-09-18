@@ -38,57 +38,56 @@
     "indicator": "KSI-CNA-DFP",
     "family": "CNA",
     "status": "undetermined",
-    "reason": "no Rego evaluation module implemented yet for this KSI family",
-    "remediation_hint": "implement rego/ksi/cna and wire it into internal/backends/fedramp20x"
+    "reason": "no IR evidence collected for any control this indicator references",
+    "remediation_hint": "add a frontend collector or IR mapping producing a node for at least one referenced control"
   },
   {
     "indicator": "KSI-CNA-EIS",
     "family": "CNA",
     "status": "undetermined",
-    "reason": "no Rego evaluation module implemented yet for this KSI family",
-    "remediation_hint": "implement rego/ksi/cna and wire it into internal/backends/fedramp20x"
+    "reason": "no IR evidence collected for any control this indicator references",
+    "remediation_hint": "add a frontend collector or IR mapping producing a node for at least one referenced control"
   },
   {
     "indicator": "KSI-CNA-IBP",
     "family": "CNA",
     "status": "undetermined",
-    "reason": "no Rego evaluation module implemented yet for this KSI family",
-    "remediation_hint": "implement rego/ksi/cna and wire it into internal/backends/fedramp20x"
+    "reason": "no IR evidence collected for any control this indicator references",
+    "remediation_hint": "add a frontend collector or IR mapping producing a node for at least one referenced control"
   },
   {
     "indicator": "KSI-CNA-MAT",
     "family": "CNA",
     "status": "undetermined",
-    "reason": "no Rego evaluation module implemented yet for this KSI family",
-    "remediation_hint": "implement rego/ksi/cna and wire it into internal/backends/fedramp20x"
+    "reason": "missing IR evidence for control(s): [\"ac-17.3\", \"ac-18.1\", \"ac-18.3\", \"ac-20.1\", \"ca-9\", \"sc-10\", \"sc-7.3\", \"sc-7.4\", \"sc-7.8\", \"sc-8\", \"si-10\", \"si-11\", \"si-16\"]",
+    "remediation_hint": "add a frontend collector or IR mapping producing a node for the missing control(s)"
   },
   {
     "indicator": "KSI-CNA-OFA",
     "family": "CNA",
-    "status": "undetermined",
-    "reason": "no Rego evaluation module implemented yet for this KSI family",
-    "remediation_hint": "implement rego/ksi/cna and wire it into internal/backends/fedramp20x"
+    "status": "not_applicable",
+    "reason": "indicator has no associated controls in the vendored dataset"
   },
   {
     "indicator": "KSI-CNA-RNT",
     "family": "CNA",
     "status": "undetermined",
-    "reason": "no Rego evaluation module implemented yet for this KSI family",
-    "remediation_hint": "implement rego/ksi/cna and wire it into internal/backends/fedramp20x"
+    "reason": "missing IR evidence for control(s): [\"ac-17.3\", \"ca-9\", \"cm-7.1\", \"si-8\"]",
+    "remediation_hint": "add a frontend collector or IR mapping producing a node for the missing control(s)"
   },
   {
     "indicator": "KSI-CNA-RVP",
     "family": "CNA",
     "status": "undetermined",
-    "reason": "no Rego evaluation module implemented yet for this KSI family",
-    "remediation_hint": "implement rego/ksi/cna and wire it into internal/backends/fedramp20x"
+    "reason": "no IR evidence collected for any control this indicator references",
+    "remediation_hint": "add a frontend collector or IR mapping producing a node for at least one referenced control"
   },
   {
     "indicator": "KSI-CNA-ULN",
     "family": "CNA",
     "status": "undetermined",
-    "reason": "no Rego evaluation module implemented yet for this KSI family",
-    "remediation_hint": "implement rego/ksi/cna and wire it into internal/backends/fedramp20x"
+    "reason": "no IR evidence collected for any control this indicator references",
+    "remediation_hint": "add a frontend collector or IR mapping producing a node for at least one referenced control"
   },
   {
     "indicator": "KSI-IAM-AAM",
