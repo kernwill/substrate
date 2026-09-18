@@ -45,3 +45,43 @@ jobs:
 		t.Errorf("env.REGION = %v, want %q (unrelated value must survive untouched)", got, want)
 	}
 }
+
+// TestParseDoesNotRedactPermissionsBlock is a regression test:
+// redact.Value's generic key-name pass matches "token" as a substring
+// of "id-token" - the standard OIDC permission scope name - which
+// silently replaced a real scope level ("write") with
+// redact.Placeholder before mapPermissions (ir.go) ever read it,
+// corrupting the already-reviewed AC-6 evidence mapping. Every
+// permissions value is one of a fixed, closed enum ("read"/"write"/
+// "none"), never secret material, so the whole "permissions" block must
+// survive Parse completely unredacted.
+func TestParseDoesNotRedactPermissionsBlock(t *testing.T) {
+	dir := t.TempDir()
+	writeWorkflow(t, dir, "ci.yml", `
+name: CI
+on: push
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo hi
+`)
+	initGitRepo(t, dir)
+	g, err := Parse(dir)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	perms, ok := g.Workflows[0].Attributes["permissions"].(map[string]any)
+	if !ok {
+		t.Fatalf("permissions = %+v, not a map", g.Workflows[0].Attributes["permissions"])
+	}
+	if got, want := perms["id-token"], "write"; got != want {
+		t.Errorf("permissions.id-token = %v, want %q (never redacted - it's a scope level, not a secret)", got, want)
+	}
+	if got, want := perms["contents"], "read"; got != want {
+		t.Errorf("permissions.contents = %v, want %q", got, want)
+	}
+}

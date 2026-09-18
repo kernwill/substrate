@@ -63,7 +63,27 @@ func Parse(dir string) (*WorkflowGraph, error) {
 		// place a secret could realistically appear here - GitHub Actions
 		// encourages ${{ secrets.X }} references instead of literal
 		// values, but nothing stops an author from hardcoding one anyway.
+		//
+		// The top-level "permissions" block is exempted first and
+		// restored after: /code-review caught that redact.Value's
+		// generic key-name pass matches "token" as a substring of
+		// "id-token" (the standard OIDC permission scope name,
+		// "permissions: {id-token: write}"), silently replacing a real
+		// scope level ("read"/"write"/"none") with "[REDACTED]" before
+		// ir.go's mapPermissions - the already-reviewed AC-6 evidence
+		// mapper - ever reads it. Every permissions value is one of that
+		// fixed, closed enum, never secret material, so this block never
+		// needed redaction in the first place; the exemption is scoped
+		// to exactly this one field rather than narrowing KeyLooksSecret
+		// itself, which would weaken the "token" pattern everywhere else
+		// in the codebase for the sake of one GitHub-Actions-specific
+		// key name.
+		permissions, hadPermissions := doc["permissions"]
+		delete(doc, "permissions")
 		doc = redact.Value(doc).(map[string]any)
+		if hadPermissions {
+			doc["permissions"] = permissions
+		}
 
 		name, _ := doc["name"].(string)
 		graph.Workflows = append(graph.Workflows, Workflow{
