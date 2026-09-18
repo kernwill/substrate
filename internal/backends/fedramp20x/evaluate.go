@@ -31,8 +31,8 @@ import (
 // gap explicitly rather than omitting the family from the result -
 // FR-6.7's coverage report needs to account for every indicator the
 // dataset defines, not just the ones this package has implemented so
-// far. Today only rego/ksi/svc exists; the other nine KSI families fall
-// through to notImplemented.
+// far. Today rego/ksi/svc and rego/ksi/iam exist; the other eight KSI
+// families fall through to notImplemented.
 func Evaluate(ctx context.Context, ds *rules.Dataset, g ir.Graph) ([]IndicatorResult, error) {
 	families := make([]string, 0, len(ds.KSI))
 	for f := range ds.KSI {

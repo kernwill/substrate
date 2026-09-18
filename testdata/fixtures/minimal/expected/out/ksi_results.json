@@ -94,43 +94,43 @@
     "indicator": "KSI-IAM-AAM",
     "family": "IAM",
     "status": "undetermined",
-    "reason": "no Rego evaluation module implemented yet for this KSI family",
-    "remediation_hint": "implement rego/ksi/iam and wire it into internal/backends/fedramp20x"
+    "reason": "no IR evidence collected for any control this indicator references",
+    "remediation_hint": "add a frontend collector or IR mapping producing a node for at least one referenced control"
   },
   {
     "indicator": "KSI-IAM-APM",
     "family": "IAM",
     "status": "undetermined",
-    "reason": "no Rego evaluation module implemented yet for this KSI family",
-    "remediation_hint": "implement rego/ksi/iam and wire it into internal/backends/fedramp20x"
+    "reason": "missing IR evidence for control(s): [\"ac-2\", \"ia-2\", \"ia-2.1\", \"ia-2.2\", \"ia-2.8\", \"ia-5\", \"ia-5.1\", \"ia-5.2\", \"ia-5.6\", \"ia-6\", \"ia-8\", \"sc-23\"]",
+    "remediation_hint": "add a frontend collector or IR mapping producing a node for the missing control(s)"
   },
   {
     "indicator": "KSI-IAM-ELP",
     "family": "IAM",
     "status": "undetermined",
-    "reason": "no Rego evaluation module implemented yet for this KSI family",
-    "remediation_hint": "implement rego/ksi/iam and wire it into internal/backends/fedramp20x"
+    "reason": "missing IR evidence for control(s): [\"ac-12\", \"ac-14\", \"ac-17\", \"ac-17.1\", \"ac-17.2\", \"ac-17.3\", \"ac-2.5\", \"ac-2.6\", \"ac-20\", \"ac-20.1\", \"ac-4\", \"cm-2.7\", \"cm-9\", \"ia-11\", \"ia-2\", \"ia-3\", \"ia-4\", \"ia-4.4\", \"ia-5.2\", \"ia-5.6\", \"ps-2\", \"ps-3\", \"ps-4\", \"ps-5\", \"ps-6\", \"sc-20\", \"sc-21\", \"sc-22\", \"sc-23\", \"sc-39\", \"sc-4\", \"si-3\"]",
+    "remediation_hint": "add a frontend collector or IR mapping producing a node for the missing control(s)"
   },
   {
     "indicator": "KSI-IAM-JIT",
     "family": "IAM",
     "status": "undetermined",
-    "reason": "no Rego evaluation module implemented yet for this KSI family",
-    "remediation_hint": "implement rego/ksi/iam and wire it into internal/backends/fedramp20x"
+    "reason": "missing IR evidence for control(s): [\"ac-17\", \"ac-2\", \"ac-2.1\", \"ac-2.2\", \"ac-2.3\", \"ac-2.4\", \"ac-2.6\", \"ac-20.1\", \"ac-4\", \"ac-5\", \"ac-6.1\", \"ac-6.10\", \"ac-6.2\", \"ac-6.5\", \"ac-6.7\", \"ac-6.9\", \"ac-7\", \"au-9.4\", \"cm-5\", \"cm-7.2\", \"cm-7.5\", \"cm-9\", \"ia-4\", \"ia-4.4\", \"ia-7\", \"ps-2\", \"ps-3\", \"ps-4\", \"ps-5\", \"ps-6\", \"ps-9\", \"ra-5.5\", \"sc-2\", \"sc-23\", \"sc-39\"]",
+    "remediation_hint": "add a frontend collector or IR mapping producing a node for the missing control(s)"
   },
   {
     "indicator": "KSI-IAM-SNU",
     "family": "IAM",
     "status": "undetermined",
-    "reason": "no Rego evaluation module implemented yet for this KSI family",
-    "remediation_hint": "implement rego/ksi/iam and wire it into internal/backends/fedramp20x"
+    "reason": "no IR evidence collected for any control this indicator references",
+    "remediation_hint": "add a frontend collector or IR mapping producing a node for at least one referenced control"
   },
   {
     "indicator": "KSI-IAM-SUS",
     "family": "IAM",
     "status": "undetermined",
-    "reason": "no Rego evaluation module implemented yet for this KSI family",
-    "remediation_hint": "implement rego/ksi/iam and wire it into internal/backends/fedramp20x"
+    "reason": "no IR evidence collected for any control this indicator references",
+    "remediation_hint": "add a frontend collector or IR mapping producing a node for at least one referenced control"
   },
   {
     "indicator": "KSI-INR-AAR",

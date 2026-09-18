@@ -3,6 +3,7 @@ package fedramp20x
 import (
 	"context"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -235,9 +236,10 @@ func TestEvaluateEmptyGraphSVC(t *testing.T) {
 }
 
 // TestEvaluateUnimplementedFamiliesAreUndetermined confirms every KSI
-// family besides SVC - which has no Rego module yet - is represented in
-// the result as an honest "not yet implemented" undetermined, one row per
-// indicator the dataset defines, rather than silently missing (FR-6.7).
+// family with no Rego module yet - everything but SVC and IAM - is
+// represented in the result as an honest "not yet implemented"
+// undetermined, one row per indicator the dataset defines, rather than
+// silently missing (FR-6.7).
 func TestEvaluateUnimplementedFamiliesAreUndetermined(t *testing.T) {
 	ds := loadVendoredDataset(t)
 	results, err := Evaluate(context.Background(), ds, ir.Graph{})
@@ -245,9 +247,10 @@ func TestEvaluateUnimplementedFamiliesAreUndetermined(t *testing.T) {
 		t.Fatalf("Evaluate: %v", err)
 	}
 
+	implemented := map[string]bool{"SVC": true, "IAM": true}
 	wantCount := map[string]int{}
 	for family, theme := range ds.KSI {
-		if family == "SVC" {
+		if implemented[family] {
 			continue
 		}
 		wantCount[family] = len(theme.Indicators)
@@ -255,7 +258,7 @@ func TestEvaluateUnimplementedFamiliesAreUndetermined(t *testing.T) {
 
 	gotCount := map[string]int{}
 	for _, r := range results {
-		if r.Family == "SVC" {
+		if implemented[r.Family] {
 			continue
 		}
 		if r.Status != StatusUndetermined {
@@ -270,6 +273,150 @@ func TestEvaluateUnimplementedFamiliesAreUndetermined(t *testing.T) {
 	for family, want := range wantCount {
 		if gotCount[family] != want {
 			t.Errorf("family %s: got %d results, want %d (one per indicator)", family, gotCount[family], want)
+		}
+	}
+}
+
+// TestEvaluateIAMAgainstRealCollectors mirrors
+// TestEvaluateSVCAgainstRealCollectors for the second real family: fed
+// exactly the controls our current frontends and collectors evidence
+// today (AC-3, AC-6, CM-7, IA-2, IA-5, plus SC-28.1, CP-9, SC-7.5, SR-11
+// from outside KSI-IAM's own reach), every KSI-IAM indicator must still
+// come back undetermined - none has anywhere near full coverage - but
+// KSI-IAM-APM, -ELP, and -JIT (the three with real partial overlap,
+// per docs/adr/0012's sibling proposal) must land in the "missing IR
+// evidence for control(s)" branch, not the "no IR evidence collected
+// for any control" branch the other three (AAM, SNU, SUS) still hit.
+func TestEvaluateIAMAgainstRealCollectors(t *testing.T) {
+	ds := loadVendoredDataset(t)
+	g := ir.Graph{Nodes: []ir.Node{
+		testNode("terraform:aws_s3_bucket_public_access_block.example", "AC", 3, 0),
+		testNode("terraform:aws_s3_bucket_versioning.example", "CP", 9, 0),
+		testNode("terraform:aws_s3_bucket_server_side_encryption_configuration.example", "SC", 28, 1),
+		testNode("kubernetes:deployment.example", "CM", 7, 0),
+		testNode("kubernetes:networkpolicy.example", "SC", 7, 5),
+		testNode("github_actions:ci.yml#permissions", "AC", 6, 0),
+		testNode("github_actions:ci.yml#dependency-review", "SR", 11, 0),
+		testNode("aws:iam-user.example#mfa", "IA", 2, 0),
+		testNode("aws:iam-user.example#access-keys", "IA", 5, 0),
+	}}
+
+	results, err := Evaluate(context.Background(), ds, g)
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+
+	iamTheme := ds.KSI["IAM"]
+	if len(iamTheme.Indicators) == 0 {
+		t.Fatal("vendored dataset has no KSI-IAM indicators - test fixture assumption broken")
+	}
+
+	got := map[string]IndicatorResult{}
+	for _, r := range results {
+		if r.Family == "IAM" {
+			got[r.Indicator] = r
+		}
+	}
+	if len(got) != len(iamTheme.Indicators) {
+		t.Fatalf("got %d IAM results, want one per indicator (%d)", len(got), len(iamTheme.Indicators))
+	}
+	for name, r := range got {
+		if r.Status != StatusUndetermined {
+			t.Errorf("%s: status = %q, want %q", name, r.Status, StatusUndetermined)
+		}
+	}
+
+	partial := []string{"KSI-IAM-APM", "KSI-IAM-ELP", "KSI-IAM-JIT"}
+	for _, name := range partial {
+		r, ok := got[name]
+		if !ok {
+			t.Fatalf("%s missing from results", name)
+		}
+		if !strings.HasPrefix(r.Reason, "missing IR evidence for control(s):") {
+			t.Errorf("%s: reason = %q, want the partial-coverage branch", name, r.Reason)
+		}
+		if r.RemediationHint == "" {
+			t.Errorf("%s: remediation_hint is empty", name)
+		}
+	}
+
+	none := []string{"KSI-IAM-AAM", "KSI-IAM-SNU", "KSI-IAM-SUS"}
+	for _, name := range none {
+		r, ok := got[name]
+		if !ok {
+			t.Fatalf("%s missing from results", name)
+		}
+		if r.Reason != "no IR evidence collected for any control this indicator references" {
+			t.Errorf("%s: reason = %q, want the no-evidence-at-all branch", name, r.Reason)
+		}
+	}
+}
+
+// TestEvaluateIAMFullCoverageSatisfied mirrors
+// TestEvaluateSVCFullCoverageSatisfied: given synthetic evidence for
+// every control KSI-IAM-APM references, it comes back satisfied with
+// evidence pointing at the nodes that back it.
+func TestEvaluateIAMFullCoverageSatisfied(t *testing.T) {
+	ds := loadVendoredDataset(t)
+	apm, ok := ds.KSI["IAM"].Indicators["KSI-IAM-APM"]
+	if !ok {
+		t.Fatal("KSI-IAM-APM not found in vendored dataset - test fixture assumption broken")
+	}
+	controlIDs, err := apm.ControlIDs()
+	if err != nil {
+		t.Fatalf("KSI-IAM-APM.ControlIDs(): %v", err)
+	}
+	if len(controlIDs) == 0 {
+		t.Fatal("KSI-IAM-APM has no controls - test fixture assumption broken")
+	}
+
+	var nodes []ir.Node
+	for _, c := range controlIDs {
+		id := ir.NodeID("synthetic:node-" + c.OSCAL())
+		nodes = append(nodes, testNode(id, ir.ControlFamily(c.Family), c.Base, c.Enhancement))
+	}
+	g := ir.Graph{Nodes: nodes}
+
+	results, err := Evaluate(context.Background(), ds, g)
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+
+	var apmResult *IndicatorResult
+	for i := range results {
+		if results[i].Indicator == "KSI-IAM-APM" {
+			apmResult = &results[i]
+			break
+		}
+	}
+	if apmResult == nil {
+		t.Fatal("KSI-IAM-APM missing from results")
+	}
+	if apmResult.Status != StatusSatisfied {
+		t.Fatalf("KSI-IAM-APM: status = %q, want %q; reason: %s", apmResult.Status, StatusSatisfied, apmResult.Reason)
+	}
+	if len(apmResult.Evidence) != len(nodes) {
+		t.Errorf("KSI-IAM-APM: len(Evidence) = %d, want %d (one per synthetic node)", len(apmResult.Evidence), len(nodes))
+	}
+}
+
+// TestEvaluateEmptyGraphIAM mirrors TestEvaluateEmptyGraphSVC for the
+// second real family.
+func TestEvaluateEmptyGraphIAM(t *testing.T) {
+	ds := loadVendoredDataset(t)
+	results, err := Evaluate(context.Background(), ds, ir.Graph{})
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	for _, r := range results {
+		if r.Family != "IAM" {
+			continue
+		}
+		if r.Status != StatusUndetermined {
+			t.Errorf("%s: status = %q, want %q", r.Indicator, r.Status, StatusUndetermined)
+		}
+		if len(r.Evidence) != 0 {
+			t.Errorf("%s: Evidence = %v, want none", r.Indicator, r.Evidence)
 		}
 	}
 }
