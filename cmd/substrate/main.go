@@ -13,10 +13,12 @@
 //
 // Implemented commands:
 //
-//	substrate rules show   --class C
-//	substrate rules diff   <versionA> <versionB>
-//	substrate collect      --out <dir>
-//	substrate compile      --source <dir> --out <dir> [--runtime <dir>]
+//	substrate rules show    --class C
+//	substrate rules diff    <versionA> <versionB>
+//	substrate collect       --out <dir>
+//	substrate compile       --source <dir> --out <dir> [--runtime <dir>]
+//	substrate gate          --baseline <file> --current <file> [--nodes <file>] [--severity error|warn] [--pr-comment]
+//	substrate baseline update --current <file> --out <file>
 //
 // collect and compile are deliberately separate (FR-3 runtime
 // collection vs FR-2/FR-5/FR-6 static parsing, the evidence graph, and
@@ -24,11 +26,22 @@
 // unless --runtime points at collect's own prior output. See
 // collect.go's and compile.go's own doc comments, and docs/adr/0009.
 //
+// gate and baseline update are FR-7's CI gate: baseline update records
+// the current run's KSI results as the new baseline (with an approval
+// trail - see baseline.go's own doc comment on why that's a documented
+// stand-in for FR-6.4's Security Decision Record, not the SDR itself,
+// which doesn't exist in this codebase yet); gate diffs a later run
+// against that baseline and fails (exit 1) if a previously Satisfied
+// indicator regressed. --pr-comment additionally posts the regression
+// to the triggering pull request via the GitHub REST API, using
+// GitHub Actions' own ambient environment (GITHUB_TOKEN,
+// GITHUB_REPOSITORY, GITHUB_EVENT_PATH) rather than new flags for
+// information the CI environment already provides. See gate.go's,
+// github.go's, and baseline.go's own doc comments, and docs/adr/0011.
+//
 // Planned commands (see docs/REQUIREMENTS.md):
 //
-//	substrate ir query     --control AC-2
-//	substrate gate         --baseline <file>
-//	substrate baseline update
+//	substrate ir query      --control AC-2
 package main
 
 import (
@@ -38,7 +51,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "substrate: no command given (try: rules, collect, compile, ir, gate)")
+		fmt.Fprintln(os.Stderr, "substrate: no command given (try: rules, collect, compile, gate, baseline)")
 		os.Exit(2)
 	}
 
@@ -49,6 +62,10 @@ func main() {
 		os.Exit(runCollect(os.Args[2:], os.Stdout, os.Stderr))
 	case "compile":
 		os.Exit(runCompile(os.Args[2:], os.Stdout, os.Stderr))
+	case "gate":
+		os.Exit(runGate(os.Args[2:], os.Stdout, os.Stderr))
+	case "baseline":
+		os.Exit(runBaseline(os.Args[2:], os.Stdout, os.Stderr))
 	default:
 		fmt.Fprintf(os.Stderr, "substrate: %q not implemented yet\n", os.Args[1])
 		os.Exit(2)

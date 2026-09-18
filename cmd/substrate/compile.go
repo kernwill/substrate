@@ -24,7 +24,11 @@ import (
 // evidence graph, emit FedRAMP 20x artifacts).
 //
 // All three of FR-2's static sources are real today, and all three are
-// mapped into the evidence graph:
+// mapped into the evidence graph. "Written raw" below means written as
+// each Parse call returns it, AFTER that package's own redaction pass
+// (internal/redact, FR-4.4) already ran - never a byte-verbatim mirror
+// of the source file. See docs/redaction-coverage.md for exactly what
+// that pass does and does not catch.
 //   - Terraform: parses *.tf files directly under --source
 //     (internal/frontend/terraform.Parse), written raw to
 //     <out>/terraform.json, then mapped to IR nodes/edges
