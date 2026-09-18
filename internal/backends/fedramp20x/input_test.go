@@ -52,8 +52,29 @@ func TestBuildInputNodeWithNoControlsSerializesAsEmptyArray(t *testing.T) {
 	if err != nil {
 		t.Fatalf("json.Marshal: %v", err)
 	}
-	want := `{"id":"test:no-controls","kind":"test_fact","controls":[]}`
+	want := `{"id":"test:no-controls","kind":"test_fact","controls":[],"attributes":{}}`
 	if string(raw) != want {
 		t.Fatalf("serialized node = %s, want %s", raw, want)
+	}
+}
+
+// TestBuildInputNodeAttributesPassThrough proves a node's real
+// measurements (ir.Node.Attributes) reach the Rego input at all - until
+// this ticket, regoNode had no Attributes field, so no predicate module
+// could ever inspect a collected value, only whether a control was
+// evidenced.
+func TestBuildInputNodeAttributesPassThrough(t *testing.T) {
+	g := ir.Graph{Nodes: []ir.Node{{
+		ID:         "test:with-attrs",
+		Kind:       "s3_bucket_public_access_block",
+		Attributes: map[string]string{"block_public_acls": "true", "block_public_policy": "false"},
+	}}}
+	got := buildInput(g, rules.KSITheme{})
+
+	if got.Nodes[0].Attributes["block_public_acls"] != "true" {
+		t.Errorf("Attributes[block_public_acls] = %q, want %q", got.Nodes[0].Attributes["block_public_acls"], "true")
+	}
+	if got.Nodes[0].Attributes["block_public_policy"] != "false" {
+		t.Errorf("Attributes[block_public_policy] = %q, want %q", got.Nodes[0].Attributes["block_public_policy"], "false")
 	}
 }

@@ -1,36 +1,61 @@
 # KSI-IAM: Identity and Access Management.
 #
-# Same discipline as rego/ksi/svc/svc.rego (docs/adr/0007), applied to a
-# second family: results is FR-6.6's per-indicator status for every
-# KSI-IAM indicator in input.indicators, decided purely from evidence
-# coverage - does the graph contain at least one node naming each
-# control the indicator references - never from whether a covered
-# control's collected value is actually good. That is enough to reach
-# satisfied once every referenced control has a node; it is not enough
-# to ever return not_satisfied, which needs a per-control-type predicate
-# (e.g. whether an IAM user's MFA device count is nonzero) this ticket
-# did not author, same deferral svc.rego already made. requires_attestation
-# is likewise not returned here - see docs/crosswalk-analysis.md section 9.
+# results is FR-6.6's per-indicator status for every KSI-IAM indicator
+# in input.indicators. Coverage-only checking (does the graph contain a
+# node naming each referenced control) is rego/ksi/svc/svc.rego's
+# original discipline (docs/adr/0007); this module additionally
+# consults rego/ksi/predicates for controls that module has an authored
+# "is this covered control's value actually good" check for (ac-3
+# today) - docs/adr/0013 records why that judgment lives in a shared
+# module rather than duplicated here, and the exact propagation rule
+# below.
+#
+# Propagation, in priority order:
+#   1. Any control this indicator references, with evidence, that
+#      fails predicates.failing_nodes -> not_satisfied, regardless of
+#      how many of the indicator's other controls remain uncollected
+#      (docs/adr/0013 - a proven bad value is real information today,
+#      not something to withhold pending full coverage. Tracked
+#      concern: this means one bad resource can flip a whole
+#      multi-control indicator's status - see docs/adr/0013's own
+#      "Open" section).
+#   2. Otherwise, every referenced control has evidence -> satisfied.
+#   3. Otherwise, some but not all do -> undetermined, naming the
+#      missing ones.
+#   4. Otherwise, none do -> undetermined, "no evidence at all."
+#   5. Zero referenced controls -> not_applicable.
 #
 # Three of KSI-IAM's six indicators (KSI-IAM-APM, KSI-IAM-ELP,
-# KSI-IAM-JIT) reference at least one control our current frontends and
-# collectors evidence today (AC-3, AC-6, CM-7, IA-2, IA-5) - see
-# docs/adr/0012's sibling proposal for the exact overlap. The other
-# three (AAM, SNU, SUS) get the same "no evidence collected for any
-# control" outcome every KSI-SVC indicator gets today; this module still
-# names all six, per ADR 0007's "account for every indicator, never
-# omit."
+# KSI-IAM-JIT) reference ac-3, the one control predicates.rego judges
+# today, alongside our other evidenced controls (AC-6, CM-7, IA-2,
+# IA-5). The other three (AAM, SNU, SUS) still get the plain
+# no-evidence-at-all outcome.
 #
 # Tested from internal/backends/fedramp20x's Go test suite (via OPA's Go
 # SDK against this embedded module), not a colocated *_test.rego file -
 # see evaluate_test.go.
 package fedramp20x.ksi.iam
 
+import data.fedramp20x.ksi.predicates
 import rego.v1
 
 results contains result if {
 	some name, indicator in input.indicators
 	count(indicator.controls) > 0
+	failing := predicates.failing_nodes(indicator.controls, input.nodes)
+	count(failing) > 0
+	result := {
+		"indicator": name,
+		"status": "not_satisfied",
+		"reason": sprintf("control(s) evidenced with a value that fails this indicator's predicate: %v", [failing]),
+		"evidence": failing,
+	}
+}
+
+results contains result if {
+	some name, indicator in input.indicators
+	count(indicator.controls) > 0
+	count(predicates.failing_nodes(indicator.controls, input.nodes)) == 0
 	missing := missing_controls(indicator)
 	count(missing) == 0
 	result := {
@@ -44,6 +69,7 @@ results contains result if {
 results contains result if {
 	some name, indicator in input.indicators
 	count(indicator.controls) > 0
+	count(predicates.failing_nodes(indicator.controls, input.nodes)) == 0
 	missing := missing_controls(indicator)
 	count(missing) > 0
 	count(missing) < count(indicator.controls)
@@ -58,6 +84,7 @@ results contains result if {
 results contains result if {
 	some name, indicator in input.indicators
 	count(indicator.controls) > 0
+	count(predicates.failing_nodes(indicator.controls, input.nodes)) == 0
 	missing := missing_controls(indicator)
 	count(missing) == count(indicator.controls)
 	result := {

@@ -26,6 +26,14 @@ type regoNode struct {
 	ID       string   `json:"id"`
 	Kind     string   `json:"kind"`
 	Controls []string `json:"controls"`
+	// Attributes is the node's raw measurement (ir.Node.Attributes,
+	// FR-5.9 - a flat string map, never a bool or judged value) so a
+	// predicate module (rego/ksi/predicates) can inspect the actual
+	// collected values, not just whether a control was evidenced at
+	// all. Always a non-nil map, even when empty - see buildInput's own
+	// comment on the identical null-vs-[] pitfall this package already
+	// hit once for Controls.
+	Attributes map[string]string `json:"attributes"`
 }
 
 type regoIndicator struct {
@@ -56,7 +64,18 @@ func buildInput(g ir.Graph, theme rules.KSITheme) regoInput {
 			controls = append(controls, c.String())
 		}
 		sort.Strings(controls)
-		nodes = append(nodes, regoNode{ID: string(n.ID), Kind: n.Kind, Controls: controls})
+		// make(..., 0), never a bare copy of n.Attributes: a nil
+		// ir.Node.Attributes must still serialize as "attributes": {},
+		// not null, for the same reason Controls does below - a Rego
+		// predicate testing node.attributes.some_flag against a null
+		// attributes map is undefined, not false, which would make an
+		// attribute-less node silently vanish from a predicate check
+		// rather than correctly failing it.
+		attrs := make(map[string]string, len(n.Attributes))
+		for k, v := range n.Attributes {
+			attrs[k] = v
+		}
+		nodes = append(nodes, regoNode{ID: string(n.ID), Kind: n.Kind, Controls: controls, Attributes: attrs})
 	}
 	sort.Slice(nodes, func(i, j int) bool { return nodes[i].ID < nodes[j].ID })
 

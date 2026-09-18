@@ -60,6 +60,16 @@ func moduleDir(family string) string {
 	return "ksi/" + strings.ToLower(family)
 }
 
+// predicatesDir is rego/ksi/predicates (docs/adr/0013): a shared,
+// control-keyed library of "is this covered control's value actually
+// good" checks, compiled alongside every family that has its own
+// module, whether or not that particular family imports it. Loading it
+// unconditionally is simpler than detecting which families reference
+// it and carries no behavioral cost - an unused Rego module compiled
+// into the same query is inert, and package names never collide
+// (fedramp20x.ksi.predicates vs. fedramp20x.ksi.<family>).
+const predicatesDir = "ksi/predicates"
+
 // preparedFamily is one KSI family's compiled Rego query, cached for the
 // life of the process (see preparedQueryFor). Present is false when the
 // family has no embedded module directory at all - distinct from Err,
@@ -101,11 +111,44 @@ func preparedQueryFor(family string) preparedFamily {
 // by calls with entirely different contexts.
 func compileFamily(family string) preparedFamily {
 	dir := moduleDir(family)
-	entries, err := fs.ReadDir(substraterego.FS, dir)
-	if err != nil {
+	if _, err := fs.ReadDir(substraterego.FS, dir); err != nil {
 		return preparedFamily{Present: false}
 	}
 
+	opts, err := loadRegoDir(dir)
+	if err != nil {
+		return preparedFamily{Present: true, Err: err}
+	}
+	if len(opts) == 0 {
+		return preparedFamily{Present: true, Err: fmt.Errorf("KSI family %s has a module directory %q with no .rego files in it", family, dir)}
+	}
+
+	predOpts, err := loadRegoDir(predicatesDir)
+	if err != nil {
+		return preparedFamily{Present: true, Err: err}
+	}
+	opts = append(opts, predOpts...)
+
+	query := fmt.Sprintf("data.fedramp20x.ksi.%s.results", strings.ToLower(family))
+	opts = append(opts, oparego.Query(query))
+
+	pq, err := oparego.New(opts...).PrepareForEval(context.Background())
+	return preparedFamily{Present: true, Query: pq, Err: err}
+}
+
+// loadRegoDir returns one oparego.Module option per .rego file directly
+// under dir in the embedded rego/ filesystem, or an error if dir can't
+// be read or a file in it can't be read. A dir with zero .rego files
+// returns a nil, nil slice - compileFamily distinguishes "family has no
+// module directory at all" (Present: false) from "directory exists but
+// is empty" (a real bug) itself, since predicatesDir is expected to
+// always have content and a family's own dir having none is the
+// specific case that error message names.
+func loadRegoDir(dir string) ([]func(*oparego.Rego), error) {
+	entries, err := fs.ReadDir(substraterego.FS, dir)
+	if err != nil {
+		return nil, fmt.Errorf("read embedded module directory %s: %w", dir, err)
+	}
 	var opts []func(*oparego.Rego)
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".rego") {
@@ -114,19 +157,11 @@ func compileFamily(family string) preparedFamily {
 		path := dir + "/" + e.Name()
 		content, err := fs.ReadFile(substraterego.FS, path)
 		if err != nil {
-			return preparedFamily{Present: true, Err: fmt.Errorf("read embedded module %s: %w", path, err)}
+			return nil, fmt.Errorf("read embedded module %s: %w", path, err)
 		}
 		opts = append(opts, oparego.Module(path, string(content)))
 	}
-	if len(opts) == 0 {
-		return preparedFamily{Present: true, Err: fmt.Errorf("KSI family %s has a module directory %q with no .rego files in it", family, dir)}
-	}
-
-	query := fmt.Sprintf("data.fedramp20x.ksi.%s.results", strings.ToLower(family))
-	opts = append(opts, oparego.Query(query))
-
-	pq, err := oparego.New(opts...).PrepareForEval(context.Background())
-	return preparedFamily{Present: true, Query: pq, Err: err}
+	return opts, nil
 }
 
 // evaluateFamily runs family's prepared Rego query (if one is embedded)

@@ -43,6 +43,32 @@ func testNode(id ir.NodeID, family ir.ControlFamily, base int, enhancement int) 
 	}
 }
 
+// testS3PABNode builds an AC-3 node shaped like the real thing
+// (rego/ksi/predicates' ac3_ok checks Kind and these four attributes
+// specifically) - allTrue picks the well-configured or
+// deliberately-broken side of the self-test fixture's own two S3
+// buckets (app_data vs app_logs).
+func testS3PABNode(id ir.NodeID, allTrue bool) ir.Node {
+	v := "false"
+	if allTrue {
+		v = "true"
+	}
+	return ir.Node{
+		ID:            id,
+		ControlFamily: "AC",
+		Controls:      []ir.Control{{Family: "AC", Base: 3}},
+		Kind:          "s3_bucket_public_access_block",
+		Attributes: map[string]string{
+			"block_public_acls":       v,
+			"block_public_policy":     v,
+			"ignore_public_acls":      v,
+			"restrict_public_buckets": v,
+		},
+		Provenance:    testProvenance(),
+		SchemaVersion: ir.SchemaVersion,
+	}
+}
+
 // TestEvaluateSVCAgainstRealCollectors runs the actual, real evidence
 // KSI-SVC's real Rego module produces against exactly what our current
 // frontend collectors evidence today: an SC-28(1) node (from Terraform's
@@ -290,7 +316,7 @@ func TestEvaluateUnimplementedFamiliesAreUndetermined(t *testing.T) {
 func TestEvaluateIAMAgainstRealCollectors(t *testing.T) {
 	ds := loadVendoredDataset(t)
 	g := ir.Graph{Nodes: []ir.Node{
-		testNode("terraform:aws_s3_bucket_public_access_block.example", "AC", 3, 0),
+		testS3PABNode("terraform:aws_s3_bucket_public_access_block.example", true),
 		testNode("terraform:aws_s3_bucket_versioning.example", "CP", 9, 0),
 		testNode("terraform:aws_s3_bucket_server_side_encryption_configuration.example", "SC", 28, 1),
 		testNode("kubernetes:deployment.example", "CM", 7, 0),
@@ -373,6 +399,16 @@ func TestEvaluateIAMFullCoverageSatisfied(t *testing.T) {
 	var nodes []ir.Node
 	for _, c := range controlIDs {
 		id := ir.NodeID("synthetic:node-" + c.OSCAL())
+		if c.OSCAL() == "ac-3" {
+			// A generic, attribute-less testNode would fail
+			// predicates.ac3_ok (no attributes to prove it's good),
+			// which would flip this indicator to not_satisfied instead
+			// of the satisfied path this test means to prove - see
+			// TestEvaluateIAMFullCoverageButPredicateFailsIsNotSatisfied
+			// for that case.
+			nodes = append(nodes, testS3PABNode(id, true))
+			continue
+		}
 		nodes = append(nodes, testNode(id, ir.ControlFamily(c.Family), c.Base, c.Enhancement))
 	}
 	g := ir.Graph{Nodes: nodes}
@@ -397,6 +433,112 @@ func TestEvaluateIAMFullCoverageSatisfied(t *testing.T) {
 	}
 	if len(apmResult.Evidence) != len(nodes) {
 		t.Errorf("KSI-IAM-APM: len(Evidence) = %d, want %d (one per synthetic node)", len(apmResult.Evidence), len(nodes))
+	}
+}
+
+// TestEvaluateIAMFullCoverageButPredicateFailsIsNotSatisfied proves
+// docs/adr/0013's propagation rule takes priority over the coverage
+// check: the exact same full-coverage setup as
+// TestEvaluateIAMFullCoverageSatisfied, except the ac-3 node is the
+// deliberately-broken shape (all four flags false, matching the
+// self-test fixture's app_logs bucket) - the indicator must come back
+// not_satisfied, never satisfied, even though every referenced control
+// technically has evidence.
+func TestEvaluateIAMFullCoverageButPredicateFailsIsNotSatisfied(t *testing.T) {
+	ds := loadVendoredDataset(t)
+	apm, ok := ds.KSI["IAM"].Indicators["KSI-IAM-APM"]
+	if !ok {
+		t.Fatal("KSI-IAM-APM not found in vendored dataset - test fixture assumption broken")
+	}
+	controlIDs, err := apm.ControlIDs()
+	if err != nil {
+		t.Fatalf("KSI-IAM-APM.ControlIDs(): %v", err)
+	}
+
+	var nodes []ir.Node
+	var badNodeID ir.NodeID
+	for _, c := range controlIDs {
+		id := ir.NodeID("synthetic:node-" + c.OSCAL())
+		if c.OSCAL() == "ac-3" {
+			badNodeID = id
+			nodes = append(nodes, testS3PABNode(id, false))
+			continue
+		}
+		nodes = append(nodes, testNode(id, ir.ControlFamily(c.Family), c.Base, c.Enhancement))
+	}
+	g := ir.Graph{Nodes: nodes}
+
+	results, err := Evaluate(context.Background(), ds, g)
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+
+	var apmResult *IndicatorResult
+	for i := range results {
+		if results[i].Indicator == "KSI-IAM-APM" {
+			apmResult = &results[i]
+			break
+		}
+	}
+	if apmResult == nil {
+		t.Fatal("KSI-IAM-APM missing from results")
+	}
+	if apmResult.Status != StatusNotSatisfied {
+		t.Fatalf("KSI-IAM-APM: status = %q, want %q; reason: %s", apmResult.Status, StatusNotSatisfied, apmResult.Reason)
+	}
+	if len(apmResult.Evidence) != 1 || apmResult.Evidence[0] != string(badNodeID) {
+		t.Errorf("KSI-IAM-APM: Evidence = %v, want exactly [%q]", apmResult.Evidence, badNodeID)
+	}
+}
+
+// TestEvaluateIAMNotSatisfiedEvenWithMassiveMissingCoverage is the
+// concern this session flagged for tracking (docs/adr/0013, and
+// docs/REQUIREMENTS.md section 31 item 9), made concrete as a test: fed
+// only a single, deliberately-broken ac-3 node (real collector shape),
+// KSI-IAM-APM/-ELP/-JIT must come back not_satisfied even though every
+// one of their dozens of other referenced controls has zero evidence at
+// all - the opposite of the "wait for full coverage before ever
+// flagging a known bad value" alternative this session considered and
+// rejected. KSI-IAM-AAM/-SNU/-SUS, which don't reference ac-3, must be
+// entirely unaffected.
+func TestEvaluateIAMNotSatisfiedEvenWithMassiveMissingCoverage(t *testing.T) {
+	ds := loadVendoredDataset(t)
+	g := ir.Graph{Nodes: []ir.Node{
+		testS3PABNode("terraform:aws_s3_bucket_public_access_block.example", false),
+	}}
+
+	results, err := Evaluate(context.Background(), ds, g)
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+
+	got := map[string]IndicatorResult{}
+	for _, r := range results {
+		if r.Family == "IAM" {
+			got[r.Indicator] = r
+		}
+	}
+
+	flipped := []string{"KSI-IAM-APM", "KSI-IAM-ELP", "KSI-IAM-JIT"}
+	for _, name := range flipped {
+		r, ok := got[name]
+		if !ok {
+			t.Fatalf("%s missing from results", name)
+		}
+		if r.Status != StatusNotSatisfied {
+			t.Errorf("%s: status = %q, want %q (a single known-bad control must override, regardless of how much else is uncollected)", name, r.Status, StatusNotSatisfied)
+		}
+	}
+
+	unaffected := []string{"KSI-IAM-AAM", "KSI-IAM-SNU", "KSI-IAM-SUS"}
+	for _, name := range unaffected {
+		r, ok := got[name]
+		if !ok {
+			t.Fatalf("%s missing from results", name)
+		}
+		if r.Status != StatusUndetermined {
+			t.Errorf("%s: status = %q, want %q (doesn't reference ac-3, must be unaffected)", name, r.Status, StatusUndetermined)
+		}
 	}
 }
 
