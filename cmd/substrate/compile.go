@@ -12,6 +12,7 @@ import (
 
 	"github.com/kernwill/substrate/internal/backends/fedramp20x"
 	awscollectors "github.com/kernwill/substrate/internal/frontend/collectors/aws"
+	"github.com/kernwill/substrate/internal/frontend/dockerfile"
 	"github.com/kernwill/substrate/internal/frontend/githubactions"
 	"github.com/kernwill/substrate/internal/frontend/kubernetes"
 	"github.com/kernwill/substrate/internal/frontend/terraform"
@@ -47,6 +48,10 @@ import (
 //     settings, not workflow YAML content, and need a live API
 //     collector (FR-3-shaped work) that doesn't exist yet - see that
 //     package's own doc.go.
+//   - Dockerfile: parses Dockerfile/Dockerfile.* files directly under
+//     --source (internal/frontend/dockerfile.Parse), written raw to
+//     <out>/dockerfile.json, mapped the same way (dockerfile.ToIR) -
+//     FR-2.7's base-image extraction, SHOULD priority.
 //
 // The "k8s" and ".github/workflows" subdirectories are narrow,
 // provisional conventions matching testdata/fixtures/minimal's own
@@ -147,6 +152,11 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "substrate compile: parse github actions: %v\n", err)
 		return 2
 	}
+	dockerGraph, err := dockerfile.Parse(*source)
+	if err != nil {
+		fmt.Fprintf(stderr, "substrate compile: parse dockerfile: %v\n", err)
+		return 2
+	}
 
 	tfIR, err := terraform.ToIR(tfGraph)
 	if err != nil {
@@ -163,13 +173,20 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "substrate compile: map github actions to evidence graph: %v\n", err)
 		return 2
 	}
+	dockerIR, err := dockerfile.ToIR(dockerGraph)
+	if err != nil {
+		fmt.Fprintf(stderr, "substrate compile: map dockerfile to evidence graph: %v\n", err)
+		return 2
+	}
 	evidence := ir.Graph{}
 	evidence.Nodes = append(evidence.Nodes, tfIR.Nodes...)
 	evidence.Nodes = append(evidence.Nodes, k8sIR.Nodes...)
 	evidence.Nodes = append(evidence.Nodes, ghaIR.Nodes...)
+	evidence.Nodes = append(evidence.Nodes, dockerIR.Nodes...)
 	evidence.Edges = append(evidence.Edges, tfIR.Edges...)
 	evidence.Edges = append(evidence.Edges, k8sIR.Edges...)
 	evidence.Edges = append(evidence.Edges, ghaIR.Edges...)
+	evidence.Edges = append(evidence.Edges, dockerIR.Edges...)
 
 	// runtimeSummary is built entirely inside this block, not from
 	// variables hoisted above it: a zero bucket/user count and "runtime
@@ -268,6 +285,10 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "substrate compile: %v\n", err)
 		return 2
 	}
+	if err := writeArtifact(tmpOut, "dockerfile.json", dockerGraph); err != nil {
+		fmt.Fprintf(stderr, "substrate compile: %v\n", err)
+		return 2
+	}
 
 	irDir := filepath.Join(tmpOut, "ir")
 	if err := os.MkdirAll(irDir, 0o755); err != nil {
@@ -304,9 +325,9 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "substrate compile: warning: %s\n", warning)
 	}
 
-	fmt.Fprintf(stdout, "parsed %d terraform resource(s), %s, and %s from %s%s; compiled %d evidence node(s) and %d edge(s); evaluated %d KSI indicator(s): %s; coverage: %s\n",
+	fmt.Fprintf(stdout, "parsed %d terraform resource(s), %s, %s, and %d dockerfile stage(s) from %s%s; compiled %d evidence node(s) and %d edge(s); evaluated %d KSI indicator(s): %s; coverage: %s\n",
 		len(tfGraph.Resources), resourceCount(k8sDir, len(k8sGraph.Resources), "kubernetes resource"),
-		resourceCount(ghaDir, len(ghaGraph.Workflows), "github actions workflow"), *source, runtimeSummary, len(evidence.Nodes), len(evidence.Edges),
+		resourceCount(ghaDir, len(ghaGraph.Workflows), "github actions workflow"), len(dockerGraph.Stages), *source, runtimeSummary, len(evidence.Nodes), len(evidence.Edges),
 		len(ksiResults), statusTally(ksiResults), formatCoverage(coverage.Overall))
 	return 0
 }

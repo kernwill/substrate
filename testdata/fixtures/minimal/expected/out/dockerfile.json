@@ -1,0 +1,71 @@
+{
+  "stages": [
+    {
+      "address": {
+        "path": "../../testdata/fixtures/minimal/Dockerfile",
+        "index": 0,
+        "name": "builder"
+      },
+      "image": {
+        "kind": "external",
+        "repository": "golang",
+        "tag": "1.22",
+        "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111"
+      },
+      "provenance": {
+        "source_type": "dockerfile",
+        "locator": {
+          "path": "../../testdata/fixtures/minimal/Dockerfile",
+          "line": 2
+        },
+        "timestamp": "2026-09-18T20:32:53Z",
+        "collector_version": "dockerfile/v0.1.0",
+        "basis": "declared",
+        "confidence": "deterministic"
+      }
+    },
+    {
+      "address": {
+        "path": "../../testdata/fixtures/minimal/Dockerfile",
+        "index": 1,
+        "name": "test"
+      },
+      "image": {
+        "kind": "local_stage"
+      },
+      "provenance": {
+        "source_type": "dockerfile",
+        "locator": {
+          "path": "../../testdata/fixtures/minimal/Dockerfile",
+          "line": 7
+        },
+        "timestamp": "2026-09-18T20:32:53Z",
+        "collector_version": "dockerfile/v0.1.0",
+        "basis": "declared",
+        "confidence": "deterministic"
+      }
+    },
+    {
+      "address": {
+        "path": "../../testdata/fixtures/minimal/Dockerfile",
+        "index": 2
+      },
+      "image": {
+        "kind": "external",
+        "repository": "gcr.io/distroless/static-debian12",
+        "tag": "latest"
+      },
+      "provenance": {
+        "source_type": "dockerfile",
+        "locator": {
+          "path": "../../testdata/fixtures/minimal/Dockerfile",
+          "line": 10
+        },
+        "timestamp": "2026-09-18T20:32:53Z",
+        "collector_version": "dockerfile/v0.1.0",
+        "basis": "declared",
+        "confidence": "deterministic"
+      }
+    }
+  ]
+}
