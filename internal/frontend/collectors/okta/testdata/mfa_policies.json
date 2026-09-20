@@ -1,0 +1,62 @@
+[
+  {
+    "id": "policy-alpha",
+    "name": "Default MFA Enrollment Policy",
+    "status": "ACTIVE",
+    "priority": 1,
+    "conditions": {
+      "people": {
+        "groups": {
+          "include": ["everyone-group-id"]
+        }
+      }
+    },
+    "settings": {
+      "factors": {
+        "okta_verify": {
+          "enroll": { "self": "REQUIRED" }
+        },
+        "okta_otp": {
+          "enroll": { "self": "OPTIONAL" }
+        },
+        "google_otp": {
+          "enroll": { "self": "NOT_ALLOWED" }
+        }
+      }
+    }
+  },
+  {
+    "id": "policy-beta",
+    "name": "Contractor MFA Enrollment Policy",
+    "status": "INACTIVE",
+    "priority": 2,
+    "conditions": {
+      "people": {
+        "groups": {
+          "include": ["contractors-group-id"]
+        }
+      }
+    },
+    "settings": {
+      "factors": {
+        "okta_verify": {
+          "enroll": { "self": "OPTIONAL" }
+        }
+      }
+    }
+  },
+  {
+    "id": "policy-gamma",
+    "name": "Malformed Settings Policy",
+    "status": "ACTIVE",
+    "priority": 3,
+    "conditions": {
+      "people": {
+        "groups": {
+          "include": []
+        }
+      }
+    },
+    "settings": "not-an-object"
+  }
+]
