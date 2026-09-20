@@ -2,45 +2,10 @@ package okta
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
-	"os"
 	"testing"
-	"time"
 
 	"github.com/kernwill/substrate/internal/provenance"
 )
-
-var testObservedAt = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-
-// fakePolicyEndpoint implements OktaAPI by serving canned RawPolicy
-// data loaded from this package's testdata fixtures (FR-3.10), keyed by
-// policy type - the same fixture-substitution pattern aws's fakeS3
-// uses, adapted for this package's one shared ListPolicies operation.
-type fakePolicyEndpoint struct {
-	byType map[string][]RawPolicy
-}
-
-func loadFakePolicyEndpoint(t *testing.T, policyType, fixture string) *fakePolicyEndpoint {
-	t.Helper()
-	raw, err := os.ReadFile("testdata/" + fixture)
-	if err != nil {
-		t.Fatalf("read testdata/%s: %v", fixture, err)
-	}
-	var policies []RawPolicy
-	if err := json.Unmarshal(raw, &policies); err != nil {
-		t.Fatalf("parse testdata/%s: %v", fixture, err)
-	}
-	return &fakePolicyEndpoint{byType: map[string][]RawPolicy{policyType: policies}}
-}
-
-func (f *fakePolicyEndpoint) ListPolicies(ctx context.Context, policyType string) ([]RawPolicy, error) {
-	policies, ok := f.byType[policyType]
-	if !ok {
-		return nil, errors.New("fakePolicyEndpoint: no fixture registered for policy type " + policyType)
-	}
-	return policies, nil
-}
 
 func TestCollectMFAEnrollmentPolicies(t *testing.T) {
 	client := loadFakePolicyEndpoint(t, mfaPolicyType, "mfa_policies.json")
@@ -109,7 +74,7 @@ func TestCollectMFAEnrollmentPoliciesSortedByID(t *testing.T) {
 }
 
 func TestCollectMFAEnrollmentPoliciesPropagatesListError(t *testing.T) {
-	client := &fakePolicyEndpoint{byType: map[string][]RawPolicy{}}
+	client := newFakePolicyEndpoint()
 	if _, err := CollectMFAEnrollmentPolicies(context.Background(), client, testObservedAt); err == nil {
 		t.Fatal("CollectMFAEnrollmentPolicies succeeded, want an error when ListPolicies fails")
 	}

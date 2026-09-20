@@ -1,0 +1,30 @@
+[
+  {
+    "id": "sp-alpha",
+    "name": "Default Sign-On Policy",
+    "status": "ACTIVE",
+    "priority": 1,
+    "conditions": {
+      "people": {
+        "groups": {
+          "include": ["everyone-group-id"]
+        }
+      }
+    },
+    "settings": {}
+  },
+  {
+    "id": "sp-beta",
+    "name": "No Rules Policy",
+    "status": "ACTIVE",
+    "priority": 2,
+    "conditions": {
+      "people": {
+        "groups": {
+          "include": []
+        }
+      }
+    },
+    "settings": {}
+  }
+]

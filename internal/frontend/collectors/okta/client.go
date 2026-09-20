@@ -21,8 +21,18 @@ import (
 // GET /api/v1/policies resource, distinguished only by policyType - one
 // real Okta API operation reused across collectors, not an artificial
 // merge of unrelated ones.
+//
+// ListPolicyRules is the second call session-policy collection needs
+// (sessionpolicy.go): unlike MFA_ENROLL, an OKTA_SIGN_ON policy's actual
+// idle-timeout/session-lifetime values live on its rules
+// (GET /api/v1/policies/{id}/rules), not on the policy object itself -
+// a real shape difference from MFA_ENROLL, not an oversight, the same
+// kind of "the live API has a documented behavior nobody had reason to
+// check for until this specific collector" docs/adr/0008 already
+// records for S3/IAM/CloudTrail.
 type OktaAPI interface {
 	ListPolicies(ctx context.Context, policyType string) ([]RawPolicy, error)
+	ListPolicyRules(ctx context.Context, policyID string) ([]RawPolicyRule, error)
 }
 
 // RawPolicy is one policy object exactly as Okta's Management API
@@ -56,6 +66,18 @@ type RawPeopleCondition struct {
 type RawGroupCondition struct {
 	Include []string `json:"include"`
 	Exclude []string `json:"exclude"`
+}
+
+// RawPolicyRule is one rule object exactly as Okta's Management API
+// returns it (GET /api/v1/policies/{id}/rules), before any
+// collector-specific interpretation of Actions - the rule-level
+// counterpart to RawPolicy.Settings.
+type RawPolicyRule struct {
+	ID       string          `json:"id"`
+	Name     string          `json:"name"`
+	Status   string          `json:"status"`
+	Priority int             `json:"priority"`
+	Actions  json.RawMessage `json:"actions"`
 }
 
 // RESTClient is OktaAPI's production implementation: authenticated GET
@@ -122,4 +144,43 @@ func (c *RESTClient) ListPolicies(ctx context.Context, policyType string) ([]Raw
 		return nil, fmt.Errorf("okta: decoding ListPolicies(%s) response: %w", policyType, err)
 	}
 	return policies, nil
+}
+
+// ListPolicyRules calls GET /api/v1/policies/{policyID}/rules, one call
+// per policy - session-policy collection's per-item fan-out, the same
+// shape aws.CollectS3/CollectIAM use for buckets/users. Okta orgs
+// typically have a handful of sign-on policies (not hundreds), so this
+// package does not bound-concurrency this fan-out the way
+// aws.collectConcurrent does for potentially large AWS resource counts;
+// worth revisiting if a real customer org's policy count ever makes
+// that assumption wrong.
+func (c *RESTClient) ListPolicyRules(ctx context.Context, policyID string) ([]RawPolicyRule, error) {
+	reqURL := fmt.Sprintf("%s/api/v1/policies/%s/rules", c.orgURL, url.PathEscape(policyID))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("okta: building ListPolicyRules request: %w", err)
+	}
+
+	token, err := c.tokens.Token(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("okta: getting access token: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("okta: ListPolicyRules(%s) request: %w", policyID, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("okta: ListPolicyRules(%s) returned status %d", policyID, resp.StatusCode)
+	}
+
+	var rules []RawPolicyRule
+	if err := json.NewDecoder(resp.Body).Decode(&rules); err != nil {
+		return nil, fmt.Errorf("okta: decoding ListPolicyRules(%s) response: %w", policyID, err)
+	}
+	return rules, nil
 }

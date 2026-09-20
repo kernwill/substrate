@@ -1,0 +1,24 @@
+[
+  {
+    "id": "rule-1",
+    "name": "Default Rule",
+    "status": "ACTIVE",
+    "priority": 1,
+    "actions": {
+      "signon": {
+        "session": {
+          "maxSessionIdleMinutes": 120,
+          "maxSessionLifetimeMinutes": 720,
+          "usePersistentCookie": false
+        }
+      }
+    }
+  },
+  {
+    "id": "rule-2",
+    "name": "Malformed Rule",
+    "status": "ACTIVE",
+    "priority": 2,
+    "actions": "not-an-object"
+  }
+]
