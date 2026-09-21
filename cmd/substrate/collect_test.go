@@ -19,17 +19,18 @@ import (
 // TestWriteCollectOutput exercises the real logic in this command
 // (writing and atomically publishing collect's artifacts) against
 // synthetic graphs, with no AWS credentials or client involved -
-// CollectS3, CollectIAM, CollectCloudTrail, and CollectSecurityGroups
-// already have their own thorough, fixture-backed tests in
-// internal/frontend/collectors/aws.
+// CollectS3, CollectIAM, CollectCloudTrail, CollectSecurityGroups, and
+// CollectSubnets already have their own thorough, fixture-backed tests
+// in internal/frontend/collectors/aws.
 func TestWriteCollectOutput(t *testing.T) {
 	out := filepath.Join(t.TempDir(), "out")
 	s3Graph := &awscollectors.S3Graph{Buckets: []awscollectors.Bucket{{Name: "example-bucket"}}}
 	iamGraph := &awscollectors.IAMGraph{Users: []awscollectors.IAMUser{{Name: "example-user"}}}
 	cloudTrailGraph := &awscollectors.CloudTrailGraph{Trails: []awscollectors.Trail{{Name: "example-trail"}}}
 	securityGroupsGraph := &awscollectors.SecurityGroupsGraph{Rules: []awscollectors.SecurityGroupRule{{SecurityGroupID: "sg-example"}}}
+	subnetsGraph := &awscollectors.SubnetsGraph{Subnets: []awscollectors.Subnet{{SubnetID: "subnet-example"}}}
 
-	warning, err := writeCollectOutput(out, s3Graph, iamGraph, cloudTrailGraph, securityGroupsGraph, nil)
+	warning, err := writeCollectOutput(out, s3Graph, iamGraph, cloudTrailGraph, securityGroupsGraph, subnetsGraph, nil)
 	if err != nil {
 		t.Fatalf("writeCollectOutput: %v", err)
 	}
@@ -85,6 +86,18 @@ func TestWriteCollectOutput(t *testing.T) {
 		t.Errorf("%s contents = %+v, want one rule for sg-example", awsSecurityGroupsArtifactName, gotSecurityGroups)
 	}
 
+	raw, err = os.ReadFile(filepath.Join(out, awsSubnetsArtifactName))
+	if err != nil {
+		t.Fatalf("read %s: %v", awsSubnetsArtifactName, err)
+	}
+	var gotSubnets awscollectors.SubnetsGraph
+	if err := json.Unmarshal(raw, &gotSubnets); err != nil {
+		t.Fatalf("parse %s: %v", awsSubnetsArtifactName, err)
+	}
+	if len(gotSubnets.Subnets) != 1 || gotSubnets.Subnets[0].SubnetID != "subnet-example" {
+		t.Errorf("%s contents = %+v, want one subnet named subnet-example", awsSubnetsArtifactName, gotSubnets)
+	}
+
 	if _, err := os.Stat(out + ".tmp"); !os.IsNotExist(err) {
 		t.Errorf("out+\".tmp\" = %v, want it gone after a successful write", err)
 	}
@@ -105,6 +118,7 @@ func TestWriteCollectOutputWithOkta(t *testing.T) {
 	iamGraph := &awscollectors.IAMGraph{}
 	cloudTrailGraph := &awscollectors.CloudTrailGraph{}
 	securityGroupsGraph := &awscollectors.SecurityGroupsGraph{}
+	subnetsGraph := &awscollectors.SubnetsGraph{}
 	okta := &oktaResults{
 		MFA:           &oktacollectors.MFAEnrollmentGraph{Policies: []oktacollectors.MFAEnrollmentPolicy{{ID: "policy-1"}}},
 		SessionPolicy: &oktacollectors.SessionPolicyGraph{Rules: []oktacollectors.SessionPolicyRule{{PolicyID: "sp-1", RuleID: "rule-1"}}},
@@ -112,7 +126,7 @@ func TestWriteCollectOutputWithOkta(t *testing.T) {
 		AdminRole:     &oktacollectors.AdminRoleAssignmentGraph{Users: []oktacollectors.AdminRoleAssignment{{UserID: "user-1"}}},
 	}
 
-	if _, err := writeCollectOutput(out, s3Graph, iamGraph, cloudTrailGraph, securityGroupsGraph, okta); err != nil {
+	if _, err := writeCollectOutput(out, s3Graph, iamGraph, cloudTrailGraph, securityGroupsGraph, subnetsGraph, okta); err != nil {
 		t.Fatalf("writeCollectOutput: %v", err)
 	}
 
@@ -144,11 +158,12 @@ func TestWriteCollectOutputRerunLeavesNoBackupDirectory(t *testing.T) {
 	emptyIAM := &awscollectors.IAMGraph{}
 	emptyCloudTrail := &awscollectors.CloudTrailGraph{}
 	emptySecurityGroups := &awscollectors.SecurityGroupsGraph{}
+	emptySubnets := &awscollectors.SubnetsGraph{}
 
-	if _, err := writeCollectOutput(out, empty, emptyIAM, emptyCloudTrail, emptySecurityGroups, nil); err != nil {
+	if _, err := writeCollectOutput(out, empty, emptyIAM, emptyCloudTrail, emptySecurityGroups, emptySubnets, nil); err != nil {
 		t.Fatalf("first writeCollectOutput: %v", err)
 	}
-	if _, err := writeCollectOutput(out, empty, emptyIAM, emptyCloudTrail, emptySecurityGroups, nil); err != nil {
+	if _, err := writeCollectOutput(out, empty, emptyIAM, emptyCloudTrail, emptySecurityGroups, emptySubnets, nil); err != nil {
 		t.Fatalf("second writeCollectOutput: %v", err)
 	}
 
