@@ -37,10 +37,17 @@ import (
 // stream) from the policy-backed calls above, closer in shape to
 // aws.CloudTrailAPI's live-status read than to anything else in this
 // package.
+//
+// ListUsers and ListUserRoles are adminrole.go's pair, back to a
+// familiar shape: enumerate an item, then fan out one call per item for
+// its own detail - the same pattern aws.CollectIAM already uses for
+// AWS users' MFA/access-key/login-profile facts.
 type OktaAPI interface {
 	ListPolicies(ctx context.Context, policyType string) ([]RawPolicy, error)
 	ListPolicyRules(ctx context.Context, policyID string) ([]RawPolicyRule, error)
 	ListSystemLogEvents(ctx context.Context, since, until time.Time, eventTypes []string) ([]RawLogEvent, error)
+	ListUsers(ctx context.Context) ([]RawUser, error)
+	ListUserRoles(ctx context.Context, userID string) ([]RawUserRole, error)
 }
 
 // RawPolicy is one policy object exactly as Okta's Management API
@@ -113,6 +120,25 @@ type RawLogActor struct {
 	ID          string `json:"id"`
 	Type        string `json:"type"`
 	DisplayName string `json:"displayName"`
+}
+
+// RawUser is one user object as Okta's Management API returns it
+// (GET /api/v1/users), the subset of fields adminrole.go needs.
+type RawUser struct {
+	ID      string `json:"id"`
+	Status  string `json:"status"`
+	Profile struct {
+		Login string `json:"login"`
+	} `json:"profile"`
+}
+
+// RawUserRole is one assigned admin role exactly as Okta's Management
+// API returns it (GET /api/v1/users/{userId}/roles).
+type RawUserRole struct {
+	ID     string `json:"id"`
+	Type   string `json:"type"`
+	Label  string `json:"label"`
+	Status string `json:"status"`
 }
 
 // RESTClient is OktaAPI's production implementation: authenticated GET
@@ -266,4 +292,74 @@ func (c *RESTClient) ListSystemLogEvents(ctx context.Context, since, until time.
 		return nil, fmt.Errorf("okta: decoding ListSystemLogEvents response: %w", err)
 	}
 	return events, nil
+}
+
+// ListUsers calls GET /api/v1/users. Like ListPolicies and
+// ListSystemLogEvents, this does not follow Link-header pagination past
+// Okta's default page size - the same disclosed gap, not yet exercised
+// by any fixture or self-test org.
+func (c *RESTClient) ListUsers(ctx context.Context) ([]RawUser, error) {
+	reqURL := c.orgURL + "/api/v1/users"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("okta: building ListUsers request: %w", err)
+	}
+
+	token, err := c.tokens.Token(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("okta: getting access token: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("okta: ListUsers request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("okta: ListUsers returned status %d", resp.StatusCode)
+	}
+
+	var users []RawUser
+	if err := json.NewDecoder(resp.Body).Decode(&users); err != nil {
+		return nil, fmt.Errorf("okta: decoding ListUsers response: %w", err)
+	}
+	return users, nil
+}
+
+// ListUserRoles calls GET /api/v1/users/{userID}/roles, one call per
+// user - adminrole.go's per-item fan-out, the same shape
+// aws.collectConsolePassword/collectMFADevices/collectAccessKeys use
+// per AWS IAM user.
+func (c *RESTClient) ListUserRoles(ctx context.Context, userID string) ([]RawUserRole, error) {
+	reqURL := fmt.Sprintf("%s/api/v1/users/%s/roles", c.orgURL, url.PathEscape(userID))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("okta: building ListUserRoles request: %w", err)
+	}
+
+	token, err := c.tokens.Token(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("okta: getting access token: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("okta: ListUserRoles(%s) request: %w", userID, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("okta: ListUserRoles(%s) returned status %d", userID, resp.StatusCode)
+	}
+
+	var roles []RawUserRole
+	if err := json.NewDecoder(resp.Body).Decode(&roles); err != nil {
+		return nil, fmt.Errorf("okta: decoding ListUserRoles(%s) response: %w", userID, err)
+	}
+	return roles, nil
 }

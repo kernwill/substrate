@@ -19,16 +19,22 @@ var testObservedAt = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 // kept rather than renamed when ListSystemLogEvents was added, to avoid
 // unrelated churn across every file that already references it.
 type fakePolicyEndpoint struct {
-	byType    map[string][]RawPolicy
-	byRules   map[string][]RawPolicyRule
-	events    []RawLogEvent
-	eventsErr error
+	byType       map[string][]RawPolicy
+	byRules      map[string][]RawPolicyRule
+	events       []RawLogEvent
+	eventsErr    error
+	users        []RawUser
+	usersErr     error
+	byUserRoles  map[string][]RawUserRole
+	userRolesErr map[string]error
 }
 
 func newFakePolicyEndpoint() *fakePolicyEndpoint {
 	return &fakePolicyEndpoint{
-		byType:  make(map[string][]RawPolicy),
-		byRules: make(map[string][]RawPolicyRule),
+		byType:       make(map[string][]RawPolicy),
+		byRules:      make(map[string][]RawPolicyRule),
+		byUserRoles:  make(map[string][]RawUserRole),
+		userRolesErr: make(map[string]error),
 	}
 }
 
@@ -69,6 +75,38 @@ func (f *fakePolicyEndpoint) withLogEventsError(err error) *fakePolicyEndpoint {
 	return f
 }
 
+// withUsers registers fixture as ListUsers' response.
+func (f *fakePolicyEndpoint) withUsers(t *testing.T, fixture string) *fakePolicyEndpoint {
+	t.Helper()
+	var users []RawUser
+	readTestdataJSON(t, fixture, &users)
+	f.users = users
+	return f
+}
+
+// withUsersError makes ListUsers fail.
+func (f *fakePolicyEndpoint) withUsersError(err error) *fakePolicyEndpoint {
+	f.usersErr = err
+	return f
+}
+
+// withUserRoles registers fixture as ListUserRoles(userID)'s response.
+func (f *fakePolicyEndpoint) withUserRoles(t *testing.T, userID, fixture string) *fakePolicyEndpoint {
+	t.Helper()
+	var roles []RawUserRole
+	readTestdataJSON(t, fixture, &roles)
+	f.byUserRoles[userID] = roles
+	return f
+}
+
+// withUserRolesError makes ListUserRoles(userID) fail for that one user
+// only, for testing that a single user's failure doesn't take down the
+// whole collection run.
+func (f *fakePolicyEndpoint) withUserRolesError(userID string, err error) *fakePolicyEndpoint {
+	f.userRolesErr[userID] = err
+	return f
+}
+
 func loadFakePolicyEndpoint(t *testing.T, policyType, fixture string) *fakePolicyEndpoint {
 	t.Helper()
 	return newFakePolicyEndpoint().withPolicies(t, policyType, fixture)
@@ -95,6 +133,24 @@ func (f *fakePolicyEndpoint) ListSystemLogEvents(ctx context.Context, since, unt
 		return nil, f.eventsErr
 	}
 	return f.events, nil
+}
+
+func (f *fakePolicyEndpoint) ListUsers(ctx context.Context) ([]RawUser, error) {
+	if f.usersErr != nil {
+		return nil, f.usersErr
+	}
+	return f.users, nil
+}
+
+func (f *fakePolicyEndpoint) ListUserRoles(ctx context.Context, userID string) ([]RawUserRole, error) {
+	if err, ok := f.userRolesErr[userID]; ok {
+		return nil, err
+	}
+	roles, ok := f.byUserRoles[userID]
+	if !ok {
+		return nil, errors.New("fakePolicyEndpoint: no roles fixture registered for user " + userID)
+	}
+	return roles, nil
 }
 
 // readTestdataJSON reads testdata/<name> and unmarshals it into v,

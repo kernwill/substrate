@@ -1,0 +1,8 @@
+[
+  {
+    "id": "role-1",
+    "type": "SUPER_ADMIN",
+    "label": "Super Administrator",
+    "status": "ACTIVE"
+  }
+]

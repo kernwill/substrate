@@ -1,0 +1,17 @@
+[
+  {
+    "id": "user-alpha",
+    "status": "ACTIVE",
+    "profile": { "login": "alpha@example.com" }
+  },
+  {
+    "id": "user-beta",
+    "status": "ACTIVE",
+    "profile": { "login": "beta@example.com" }
+  },
+  {
+    "id": "user-gamma",
+    "status": "SUSPENDED",
+    "profile": { "login": "gamma@example.com" }
+  }
+]
