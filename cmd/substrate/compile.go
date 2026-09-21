@@ -12,6 +12,7 @@ import (
 
 	"github.com/kernwill/substrate/internal/backends/fedramp20x"
 	awscollectors "github.com/kernwill/substrate/internal/frontend/collectors/aws"
+	oktacollectors "github.com/kernwill/substrate/internal/frontend/collectors/okta"
 	"github.com/kernwill/substrate/internal/frontend/dockerfile"
 	"github.com/kernwill/substrate/internal/frontend/githubactions"
 	"github.com/kernwill/substrate/internal/frontend/kubernetes"
@@ -80,6 +81,15 @@ import (
 // unless they specifically want Observed evidence folded in. See
 // docs/adr/0009 for why collection is its own command rather than a
 // flag that makes compile itself reach out to AWS.
+//
+// Okta evidence (FR-3.9) is read back the same way, but only when
+// <runtime>/okta_mfa.json actually exists: unlike the three AWS
+// artifacts, collect.go only writes its four Okta artifacts when it was
+// itself given --okta-org-url (Okta collection is optional there,
+// collect.go's own doc comment explains why). A --runtime directory
+// from an AWS-only collect run - the common case today - must compile
+// cleanly with zero Okta nodes, not be treated as corrupt for lacking
+// files collect.go never promised to write in the first place.
 //
 // The merged evidence graph is then scored against the vendored FedRAMP
 // Consolidated Rules dataset (internal/rules.Default) by
@@ -229,6 +239,68 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 		evidence.Nodes = append(evidence.Nodes, cloudTrailIR.Nodes...)
 		runtimeSummary = fmt.Sprintf("; ingested runtime evidence for %d s3 bucket(s), %d iam user(s), and %d cloudtrail trail(s) from %s",
 			len(s3Graph.Buckets), len(iamGraph.Users), len(cloudTrailGraph.Trails), *runtime)
+
+		// Okta evidence (FR-3.9) is read back only when okta_mfa.json is
+		// actually present - unlike the three AWS artifacts above, which
+		// collect.go always writes, collect.go writes all four Okta
+		// artifacts only when it was itself given --okta-org-url
+		// (collect.go's own doc comment on why Okta collection is
+		// optional there). A --runtime directory from an AWS-only collect
+		// run is the common case today and must compile cleanly with no
+		// Okta evidence, not fail as if the directory were corrupt. Once
+		// present, all four are required together - readArtifact's own
+		// loud-failure-on-missing-file behavior is exactly right for that
+		// case, since collect.go never writes fewer than all four.
+		oktaMFAPath := filepath.Join(*runtime, oktaMFAArtifactName)
+		if _, statErr := os.Stat(oktaMFAPath); statErr == nil {
+			mfaGraph, err := readArtifact[oktacollectors.MFAEnrollmentGraph](oktaMFAPath)
+			if err != nil {
+				fmt.Fprintf(stderr, "substrate compile: read okta runtime evidence: %v\n", err)
+				return 2
+			}
+			sessionPolicyGraph, err := readArtifact[oktacollectors.SessionPolicyGraph](filepath.Join(*runtime, oktaSessionPolicyArtifactName))
+			if err != nil {
+				fmt.Fprintf(stderr, "substrate compile: read okta runtime evidence: %v\n", err)
+				return 2
+			}
+			provisioningGraph, err := readArtifact[oktacollectors.ProvisioningEventGraph](filepath.Join(*runtime, oktaProvisioningArtifactName))
+			if err != nil {
+				fmt.Fprintf(stderr, "substrate compile: read okta runtime evidence: %v\n", err)
+				return 2
+			}
+			adminRoleGraph, err := readArtifact[oktacollectors.AdminRoleAssignmentGraph](filepath.Join(*runtime, oktaAdminRoleArtifactName))
+			if err != nil {
+				fmt.Fprintf(stderr, "substrate compile: read okta runtime evidence: %v\n", err)
+				return 2
+			}
+
+			mfaIR, err := oktacollectors.MFAEnrollmentToIR(mfaGraph)
+			if err != nil {
+				fmt.Fprintf(stderr, "substrate compile: map okta mfa enrollment to evidence graph: %v\n", err)
+				return 2
+			}
+			sessionPolicyIR, err := oktacollectors.SessionPolicyToIR(sessionPolicyGraph)
+			if err != nil {
+				fmt.Fprintf(stderr, "substrate compile: map okta session policy to evidence graph: %v\n", err)
+				return 2
+			}
+			provisioningIR, err := oktacollectors.ProvisioningEventsToIR(provisioningGraph)
+			if err != nil {
+				fmt.Fprintf(stderr, "substrate compile: map okta provisioning events to evidence graph: %v\n", err)
+				return 2
+			}
+			adminRoleIR, err := oktacollectors.AdminRoleAssignmentsToIR(adminRoleGraph)
+			if err != nil {
+				fmt.Fprintf(stderr, "substrate compile: map okta admin role assignments to evidence graph: %v\n", err)
+				return 2
+			}
+			evidence.Nodes = append(evidence.Nodes, mfaIR.Nodes...)
+			evidence.Nodes = append(evidence.Nodes, sessionPolicyIR.Nodes...)
+			evidence.Nodes = append(evidence.Nodes, provisioningIR.Nodes...)
+			evidence.Nodes = append(evidence.Nodes, adminRoleIR.Nodes...)
+			runtimeSummary += fmt.Sprintf("; ingested okta runtime evidence for %d mfa policy(ies), %d session policy rule(s), %d provisioning event(s), and %d user(s) with role assignments",
+				len(mfaGraph.Policies), len(sessionPolicyGraph.Rules), len(provisioningGraph.Events), len(adminRoleGraph.Users))
+		}
 	}
 
 	if err := evidence.Validate(); err != nil {

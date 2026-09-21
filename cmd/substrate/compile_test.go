@@ -13,6 +13,7 @@ import (
 
 	"github.com/kernwill/substrate/internal/backends/fedramp20x"
 	awscollectors "github.com/kernwill/substrate/internal/frontend/collectors/aws"
+	oktacollectors "github.com/kernwill/substrate/internal/frontend/collectors/okta"
 	"github.com/kernwill/substrate/internal/goldentest"
 	"github.com/kernwill/substrate/internal/provenance"
 	"github.com/kernwill/substrate/internal/rules"
@@ -170,7 +171,7 @@ func TestCompileIngestsRuntimeEvidence(t *testing.T) {
 	}}}
 	iamGraph := &awscollectors.IAMGraph{}
 	cloudTrailGraph := &awscollectors.CloudTrailGraph{}
-	if _, err := writeCollectOutput(runtimeDir, s3Graph, iamGraph, cloudTrailGraph); err != nil {
+	if _, err := writeCollectOutput(runtimeDir, s3Graph, iamGraph, cloudTrailGraph, nil); err != nil {
 		t.Fatalf("writeCollectOutput: %v", err)
 	}
 
@@ -190,6 +191,91 @@ func TestCompileIngestsRuntimeEvidence(t *testing.T) {
 	}
 	if !strings.Contains(string(nodesRaw), "runtime-evidence-bucket") {
 		t.Errorf("nodes.jsonl does not mention runtime-evidence-bucket; --runtime evidence was not merged into the graph")
+	}
+}
+
+// TestCompileIngestsOktaRuntimeEvidence mirrors
+// TestCompileIngestsRuntimeEvidence for Okta evidence (FR-3.9): a
+// --runtime directory with all four okta_*.json artifacts present must
+// have their nodes merged into the evidence graph too, alongside AWS's.
+func TestCompileIngestsOktaRuntimeEvidence(t *testing.T) {
+	runtimeDir := filepath.Join(t.TempDir(), "runtime")
+	s3Graph := &awscollectors.S3Graph{}
+	iamGraph := &awscollectors.IAMGraph{}
+	cloudTrailGraph := &awscollectors.CloudTrailGraph{}
+	oktaGraphs := &oktaResults{
+		MFA: &oktacollectors.MFAEnrollmentGraph{Policies: []oktacollectors.MFAEnrollmentPolicy{{
+			ID:     "runtime-evidence-policy",
+			Status: "ACTIVE",
+			Provenance: provenance.Record{
+				SourceType:       "okta",
+				Locator:          provenance.Locator{API: "okta:ListPolicies:MFA_ENROLL", Parameters: map[string]string{"policy_id": "runtime-evidence-policy"}},
+				Timestamp:        time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+				CollectorVersion: oktacollectors.MFACollectorVersion,
+				Basis:            provenance.Observed,
+				Confidence:       provenance.Deterministic,
+			},
+		}}},
+		SessionPolicy: &oktacollectors.SessionPolicyGraph{},
+		Provisioning:  &oktacollectors.ProvisioningEventGraph{},
+		AdminRole:     &oktacollectors.AdminRoleAssignmentGraph{},
+	}
+	if _, err := writeCollectOutput(runtimeDir, s3Graph, iamGraph, cloudTrailGraph, oktaGraphs); err != nil {
+		t.Fatalf("writeCollectOutput: %v", err)
+	}
+
+	out := filepath.Join(t.TempDir(), "out")
+	var stdout, stderr bytes.Buffer
+	code := runCompile([]string{"--source", "../../testdata/fixtures/minimal", "--out", out, "--runtime", runtimeDir}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("runCompile exit code = %d, want 0; stderr: %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "ingested okta runtime evidence for 1 mfa policy(ies), 0 session policy rule(s), 0 provisioning event(s), and 0 user(s) with role assignments") {
+		t.Errorf("stdout = %q, want it to mention the ingested okta runtime evidence counts", stdout.String())
+	}
+
+	nodesRaw, err := os.ReadFile(filepath.Join(out, "ir", "nodes.jsonl"))
+	if err != nil {
+		t.Fatalf("read nodes.jsonl: %v", err)
+	}
+	if !strings.Contains(string(nodesRaw), "runtime-evidence-policy") {
+		t.Errorf("nodes.jsonl does not mention runtime-evidence-policy; okta --runtime evidence was not merged into the graph")
+	}
+}
+
+// TestCompileRuntimeOktaMissingFileFailsLoudly confirms that a
+// --runtime directory with okta_mfa.json present but one of the other
+// three okta_*.json artifacts missing is a real, loud error - the same
+// "never silently treated as nothing collected" property
+// TestCompileRuntimeMissingFileFailsLoudly already establishes for AWS -
+// as opposed to okta_mfa.json being absent entirely, which is the
+// expected, silent "Okta collection didn't run" case
+// TestCompileIngestsRuntimeEvidence's runtimeDir (no Okta files at all)
+// already exercises without error.
+func TestCompileRuntimeOktaMissingFileFailsLoudly(t *testing.T) {
+	runtimeDir := filepath.Join(t.TempDir(), "runtime")
+	s3Graph := &awscollectors.S3Graph{}
+	iamGraph := &awscollectors.IAMGraph{}
+	cloudTrailGraph := &awscollectors.CloudTrailGraph{}
+	if _, err := writeCollectOutput(runtimeDir, s3Graph, iamGraph, cloudTrailGraph, nil); err != nil {
+		t.Fatalf("writeCollectOutput: %v", err)
+	}
+	// Hand-write only okta_mfa.json, simulating a partially-corrupt
+	// runtime directory - writeCollectOutput itself never produces this
+	// shape (it writes all four or none), so this has to be constructed
+	// directly.
+	if err := os.WriteFile(filepath.Join(runtimeDir, oktaMFAArtifactName), []byte(`{"policies":[]}`), 0o644); err != nil {
+		t.Fatalf("write %s: %v", oktaMFAArtifactName, err)
+	}
+
+	out := filepath.Join(t.TempDir(), "out")
+	var stdout, stderr bytes.Buffer
+	code := runCompile([]string{"--source", "../../testdata/fixtures/minimal", "--out", out, "--runtime", runtimeDir}, &stdout, &stderr)
+	if code != 2 {
+		t.Fatalf("exit code = %d, want 2; stderr: %s", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), oktaSessionPolicyArtifactName) {
+		t.Errorf("stderr = %q, want it to name the missing file", stderr.String())
 	}
 }
 
