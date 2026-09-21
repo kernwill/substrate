@@ -101,3 +101,31 @@ AU-9/AU-12 (`docs/adr/0008`) with no Declared-side mapping to reuse - and
 per CLAUDE.md's compliance-content review discipline, will be proposed for
 explicit approval separately from this architecture decision, before any
 Rego or `ir.go` mapping is written.
+
+**Confirmed against a live org, 2026-09-21 - and one gap this ADR didn't
+anticipate.** All four collectors were verified end to end against a real
+Okta Integrator Free Plan org (`docs/okta-api-scopes.md`'s own "confirmed
+2026-09-21" section has the full detail); real MFA/session-policy/
+provisioning/admin-role evidence flowed through a real `substrate compile
+--runtime` run with `"basis": "observed"`, matching this ADR's design
+exactly. Two things blocked that connection that neither this ADR nor the
+credential model above anticipated, both closer to "an authorization
+model this package hadn't modeled" than an implementation bug:
+
+1. **DPoP.** A fresh API Services app enforces proof-of-possession token
+   binding by default; `TokenSource` only implements plain bearer-token
+   client-credentials, per the "Auth" decision above. Worked around today
+   by disabling the app's DPoP requirement - not a fix, a disclosed gap
+   (`docs/okta-api-scopes.md`'s own section on this).
+2. **Admin role assignment is a second, independent authorization layer
+   from OAuth scopes**, not something the "Scoping" reasoning above
+   accounted for: a scope being present and correctly minted into the
+   access token (confirmed by decoding a real token's `scp` claim) is
+   necessary but not sufficient - the app also needs an Okta admin role
+   assigned to it directly (Read-Only Administrator, for least privilege),
+   or every non-`/api/v1/users` call 403s with `E0000006` regardless of
+   scope. This means `docs/okta-api-scopes.md` was originally incomplete
+   in a way this ADR's own "grant nothing beyond what's implemented"
+   framing didn't cover: least privilege for an Okta API Services app
+   is a scope grant AND a role assignment, not just the scope grant this
+   ADR originally described.
