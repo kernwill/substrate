@@ -30,8 +30,9 @@ func TestWriteCollectOutput(t *testing.T) {
 	securityGroupsGraph := &awscollectors.SecurityGroupsGraph{Rules: []awscollectors.SecurityGroupRule{{SecurityGroupID: "sg-example"}}}
 	subnetsGraph := &awscollectors.SubnetsGraph{Subnets: []awscollectors.Subnet{{SubnetID: "subnet-example"}}}
 	guardDutyGraph := &awscollectors.GuardDutyGraph{Detectors: []awscollectors.Detector{{Present: true, DetectorID: "detector-example"}}}
+	configGraph := &awscollectors.ConfigGraph{Recorders: []awscollectors.ConfigRecorder{{Present: true, Name: "config-example"}}}
 
-	warning, err := writeCollectOutput(out, s3Graph, iamGraph, cloudTrailGraph, securityGroupsGraph, subnetsGraph, guardDutyGraph, nil)
+	warning, err := writeCollectOutput(out, s3Graph, iamGraph, cloudTrailGraph, securityGroupsGraph, subnetsGraph, guardDutyGraph, configGraph, nil)
 	if err != nil {
 		t.Fatalf("writeCollectOutput: %v", err)
 	}
@@ -133,6 +134,7 @@ func TestWriteCollectOutputWithOkta(t *testing.T) {
 	securityGroupsGraph := &awscollectors.SecurityGroupsGraph{}
 	subnetsGraph := &awscollectors.SubnetsGraph{}
 	guardDutyGraph := &awscollectors.GuardDutyGraph{}
+	configGraph := &awscollectors.ConfigGraph{}
 	okta := &oktaResults{
 		MFA:           &oktacollectors.MFAEnrollmentGraph{Policies: []oktacollectors.MFAEnrollmentPolicy{{ID: "policy-1"}}},
 		SessionPolicy: &oktacollectors.SessionPolicyGraph{Rules: []oktacollectors.SessionPolicyRule{{PolicyID: "sp-1", RuleID: "rule-1"}}},
@@ -140,7 +142,7 @@ func TestWriteCollectOutputWithOkta(t *testing.T) {
 		AdminRole:     &oktacollectors.AdminRoleAssignmentGraph{Users: []oktacollectors.AdminRoleAssignment{{UserID: "user-1"}}},
 	}
 
-	if _, err := writeCollectOutput(out, s3Graph, iamGraph, cloudTrailGraph, securityGroupsGraph, subnetsGraph, guardDutyGraph, okta); err != nil {
+	if _, err := writeCollectOutput(out, s3Graph, iamGraph, cloudTrailGraph, securityGroupsGraph, subnetsGraph, guardDutyGraph, configGraph, okta); err != nil {
 		t.Fatalf("writeCollectOutput: %v", err)
 	}
 
@@ -174,11 +176,12 @@ func TestWriteCollectOutputRerunLeavesNoBackupDirectory(t *testing.T) {
 	emptySecurityGroups := &awscollectors.SecurityGroupsGraph{}
 	emptySubnets := &awscollectors.SubnetsGraph{}
 	emptyGuardDuty := &awscollectors.GuardDutyGraph{}
+	emptyConfig := &awscollectors.ConfigGraph{}
 
-	if _, err := writeCollectOutput(out, empty, emptyIAM, emptyCloudTrail, emptySecurityGroups, emptySubnets, emptyGuardDuty, nil); err != nil {
+	if _, err := writeCollectOutput(out, empty, emptyIAM, emptyCloudTrail, emptySecurityGroups, emptySubnets, emptyGuardDuty, emptyConfig, nil); err != nil {
 		t.Fatalf("first writeCollectOutput: %v", err)
 	}
-	if _, err := writeCollectOutput(out, empty, emptyIAM, emptyCloudTrail, emptySecurityGroups, emptySubnets, emptyGuardDuty, nil); err != nil {
+	if _, err := writeCollectOutput(out, empty, emptyIAM, emptyCloudTrail, emptySecurityGroups, emptySubnets, emptyGuardDuty, emptyConfig, nil); err != nil {
 		t.Fatalf("second writeCollectOutput: %v", err)
 	}
 

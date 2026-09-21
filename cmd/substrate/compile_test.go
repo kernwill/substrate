@@ -174,7 +174,8 @@ func TestCompileIngestsRuntimeEvidence(t *testing.T) {
 	securityGroupsGraph := &awscollectors.SecurityGroupsGraph{}
 	subnetsGraph := &awscollectors.SubnetsGraph{}
 	guardDutyGraph := &awscollectors.GuardDutyGraph{}
-	if _, err := writeCollectOutput(runtimeDir, s3Graph, iamGraph, cloudTrailGraph, securityGroupsGraph, subnetsGraph, guardDutyGraph, nil); err != nil {
+	configGraph := &awscollectors.ConfigGraph{}
+	if _, err := writeCollectOutput(runtimeDir, s3Graph, iamGraph, cloudTrailGraph, securityGroupsGraph, subnetsGraph, guardDutyGraph, configGraph, nil); err != nil {
 		t.Fatalf("writeCollectOutput: %v", err)
 	}
 
@@ -184,7 +185,7 @@ func TestCompileIngestsRuntimeEvidence(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("runCompile exit code = %d, want 0; stderr: %s", code, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "ingested runtime evidence for 1 s3 bucket(s), 0 iam user(s), 0 cloudtrail trail(s), 0 security group rule(s), 0 subnet(s), and 0 guardduty detector(s)") {
+	if !strings.Contains(stdout.String(), "ingested runtime evidence for 1 s3 bucket(s), 0 iam user(s), 0 cloudtrail trail(s), 0 security group rule(s), 0 subnet(s), 0 guardduty detector(s), and 0 config recorder(s)") {
 		t.Errorf("stdout = %q, want it to mention the ingested runtime evidence counts", stdout.String())
 	}
 
@@ -209,6 +210,7 @@ func TestCompileIngestsOktaRuntimeEvidence(t *testing.T) {
 	securityGroupsGraph := &awscollectors.SecurityGroupsGraph{}
 	subnetsGraph := &awscollectors.SubnetsGraph{}
 	guardDutyGraph := &awscollectors.GuardDutyGraph{}
+	configGraph := &awscollectors.ConfigGraph{}
 	oktaGraphs := &oktaResults{
 		MFA: &oktacollectors.MFAEnrollmentGraph{Policies: []oktacollectors.MFAEnrollmentPolicy{{
 			ID:     "runtime-evidence-policy",
@@ -226,7 +228,7 @@ func TestCompileIngestsOktaRuntimeEvidence(t *testing.T) {
 		Provisioning:  &oktacollectors.ProvisioningEventGraph{},
 		AdminRole:     &oktacollectors.AdminRoleAssignmentGraph{},
 	}
-	if _, err := writeCollectOutput(runtimeDir, s3Graph, iamGraph, cloudTrailGraph, securityGroupsGraph, subnetsGraph, guardDutyGraph, oktaGraphs); err != nil {
+	if _, err := writeCollectOutput(runtimeDir, s3Graph, iamGraph, cloudTrailGraph, securityGroupsGraph, subnetsGraph, guardDutyGraph, configGraph, oktaGraphs); err != nil {
 		t.Fatalf("writeCollectOutput: %v", err)
 	}
 
@@ -266,7 +268,8 @@ func TestCompileRuntimeOktaMissingFileFailsLoudly(t *testing.T) {
 	securityGroupsGraph := &awscollectors.SecurityGroupsGraph{}
 	subnetsGraph := &awscollectors.SubnetsGraph{}
 	guardDutyGraph := &awscollectors.GuardDutyGraph{}
-	if _, err := writeCollectOutput(runtimeDir, s3Graph, iamGraph, cloudTrailGraph, securityGroupsGraph, subnetsGraph, guardDutyGraph, nil); err != nil {
+	configGraph := &awscollectors.ConfigGraph{}
+	if _, err := writeCollectOutput(runtimeDir, s3Graph, iamGraph, cloudTrailGraph, securityGroupsGraph, subnetsGraph, guardDutyGraph, configGraph, nil); err != nil {
 		t.Fatalf("writeCollectOutput: %v", err)
 	}
 	// Hand-write only okta_mfa.json, simulating a partially-corrupt

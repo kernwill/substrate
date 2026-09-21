@@ -72,12 +72,12 @@ import (
 // "substrate collect --out <dir>" (collect.go): this command reads
 // <runtime>/aws_s3.json, <runtime>/aws_iam.json,
 // <runtime>/aws_cloudtrail.json, <runtime>/aws_security_groups.json,
-// <runtime>/aws_subnets.json, and <runtime>/aws_guardduty.json back in,
-// maps them through the same
+// <runtime>/aws_subnets.json, <runtime>/aws_guardduty.json, and
+// <runtime>/aws_config.json back in, maps them through the same
 // awscollectors.ToIR/IAMToIR/CloudTrailToIR/SecurityGroupsToIR/
-// SubnetsToIR/GuardDutyToIR this package's own unit tests exercise, and
-// merges their nodes into the evidence graph alongside the three static
-// frontends' - the Observed half of FR-4.2,
+// SubnetsToIR/GuardDutyToIR/ConfigToIR this package's own unit tests
+// exercise, and merges their nodes into the evidence graph alongside
+// the three static frontends' - the Observed half of FR-4.2,
 // next to everything above's Declared half. Omitting --runtime is not a
 // degraded mode; it is compile's default, and always has been - a
 // customer's CI-triggered compile has no need to touch AWS at all
@@ -241,6 +241,11 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "substrate compile: read runtime evidence: %v\n", err)
 			return 2
 		}
+		configGraph, err := readArtifact[awscollectors.ConfigGraph](filepath.Join(*runtime, awsConfigArtifactName))
+		if err != nil {
+			fmt.Fprintf(stderr, "substrate compile: read runtime evidence: %v\n", err)
+			return 2
+		}
 		s3IR, err := awscollectors.ToIR(s3Graph)
 		if err != nil {
 			fmt.Fprintf(stderr, "substrate compile: map aws s3 to evidence graph: %v\n", err)
@@ -271,14 +276,20 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "substrate compile: map aws guardduty to evidence graph: %v\n", err)
 			return 2
 		}
+		configIR, err := awscollectors.ConfigToIR(configGraph)
+		if err != nil {
+			fmt.Fprintf(stderr, "substrate compile: map aws config to evidence graph: %v\n", err)
+			return 2
+		}
 		evidence.Nodes = append(evidence.Nodes, s3IR.Nodes...)
 		evidence.Nodes = append(evidence.Nodes, iamIR.Nodes...)
 		evidence.Nodes = append(evidence.Nodes, cloudTrailIR.Nodes...)
 		evidence.Nodes = append(evidence.Nodes, securityGroupsIR.Nodes...)
 		evidence.Nodes = append(evidence.Nodes, subnetsIR.Nodes...)
 		evidence.Nodes = append(evidence.Nodes, guardDutyIR.Nodes...)
-		runtimeSummary = fmt.Sprintf("; ingested runtime evidence for %d s3 bucket(s), %d iam user(s), %d cloudtrail trail(s), %d security group rule(s), %d subnet(s), and %d guardduty detector(s) from %s",
-			len(s3Graph.Buckets), len(iamGraph.Users), len(cloudTrailGraph.Trails), len(securityGroupsGraph.Rules), len(subnetsGraph.Subnets), len(guardDutyGraph.Detectors), *runtime)
+		evidence.Nodes = append(evidence.Nodes, configIR.Nodes...)
+		runtimeSummary = fmt.Sprintf("; ingested runtime evidence for %d s3 bucket(s), %d iam user(s), %d cloudtrail trail(s), %d security group rule(s), %d subnet(s), %d guardduty detector(s), and %d config recorder(s) from %s",
+			len(s3Graph.Buckets), len(iamGraph.Users), len(cloudTrailGraph.Trails), len(securityGroupsGraph.Rules), len(subnetsGraph.Subnets), len(guardDutyGraph.Detectors), len(configGraph.Recorders), *runtime)
 
 		// Okta evidence (FR-3.9) is read back only when okta_mfa.json is
 		// actually present - unlike the three AWS artifacts above, which
