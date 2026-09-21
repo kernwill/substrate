@@ -308,3 +308,44 @@ connections are limited to a *managed, monitored* set, which one
 subnet's own routing fact doesn't establish by itself - this session's
 work is a richer measurement under the control already approved above,
 not a new compliance-content decision requiring its own approval round.
+
+**Confirmed by collector six (GuardDuty enablement, the first slice of
+FR-3.6), added 2026-09-21.** FR-3.6 bundles three genuinely independent
+AWS services (Config, GuardDuty, Security Hub - three separate SDKs,
+three separate auth/API surfaces), a bigger step than any single-service
+collector before it; sequenced the same one-thing-at-a-time way FR-3.4's
+two halves were, starting with whichever sub-piece the vendored dataset
+supports best. SI-4 (System Monitoring) had the highest total citation
+count checked (base plus enhancements) of any FR-3.6 candidate, and
+GuardDuty - a managed threat-detection service - is SI-4's most literal
+match of the three services, so it went first; Config and Security Hub
+are their own later passes, not bundled here.
+
+Same list-then-per-item-detail shape `CollectCloudTrail` established
+(`ListDetectors`, then `GetDetector` per ID) - GuardDuty's own
+documented limit of at most one detector per account per Region means
+this fan-out is normally trivial (zero or one item), but the shape is
+kept consistent with every other multi-item collector in this package
+rather than special-cased for "usually just one."
+
+**A genuinely new nuance for this package: a successful list call
+returning zero items is itself a resolved, meaningful fact, not
+nothing to report.** Every prior collector's "list came back empty"
+case was uninteresting (an account can have zero encrypted buckets and
+that's just... zero relevant facts). GuardDuty is different: an account
+where `ListDetectors` returns nothing has never had GuardDuty enabled
+at all, which is exactly as real and reportable a fact as a detector
+that exists and is `DISABLED` - collapsing it into silence (no node)
+would repeat the same "absence of evidence is not evidence of
+compliance" mistake `CollectS3`'s `GetPublicAccessBlock` nuance already
+warns against, just at the account level instead of the per-resource
+level. `CollectGuardDuty` returns an explicit `Present: false` fact for
+this case rather than an empty slice, verified by a test that
+deliberately reverts to the empty-slice version and confirms it fails.
+
+Mapped to base SI-4, not SI-4(5) "System-Generated Alerts" even though
+that enhancement is almost GuardDuty's literal job description: this
+collector only resolves whether a detector exists and is on, not that
+it is actually generating alerts (FR-3.6's separate, deferred findings
+half) - the same "don't claim more than the collected fact supports"
+discipline as security groups' SC-7(5) vs. subnets' base SC-7 split.

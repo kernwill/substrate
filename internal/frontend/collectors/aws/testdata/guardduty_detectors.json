@@ -1,0 +1,13 @@
+{
+  "detector-good": {
+    "status": "ENABLED",
+    "finding_publishing_frequency": "FIFTEEN_MINUTES"
+  },
+  "detector-off": {
+    "status": "DISABLED",
+    "finding_publishing_frequency": "SIX_HOURS"
+  },
+  "detector-error": {
+    "error": "AccessDeniedException: not authorized to perform guardduty:GetDetector"
+  }
+}

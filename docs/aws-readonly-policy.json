@@ -53,6 +53,12 @@
       "Effect": "Allow",
       "Action": ["ec2:DescribeSubnets", "ec2:DescribeRouteTables"],
       "Resource": "*"
+    },
+    {
+      "Sid": "SubstrateGuardDutyCollector",
+      "Effect": "Allow",
+      "Action": ["guardduty:ListDetectors", "guardduty:GetDetector"],
+      "Resource": "*"
     }
   ]
 }
