@@ -41,6 +41,12 @@
         "cloudtrail:GetTrailStatus"
       ],
       "Resource": "*"
+    },
+    {
+      "Sid": "SubstrateSecurityGroupsCollector",
+      "Effect": "Allow",
+      "Action": ["ec2:DescribeSecurityGroups"],
+      "Resource": "*"
     }
   ]
 }

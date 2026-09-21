@@ -218,3 +218,38 @@ et al. set, but can never positively resolve one that relies entirely on
 the account-level setting, which will show as `undetermined` all the way
 through to a backend evaluation even though the bucket may in fact be
 fully protected.
+
+**Confirmed by collector four (security groups, FR-3.4's rule half),
+added 2026-09-21.** Same narrow-interface pattern
+(`SecurityGroupsAPI`), same `testdata/*.json` fixture testing. Two real
+differences from every prior collector, not oversights:
+
+1. **No per-item fan-out at all**, not even CloudTrail's partial one.
+   `DescribeSecurityGroups` returns every rule for every security group
+   inline in one paginated call - there is no second per-group API call
+   this collector needs, so `collectConcurrent` isn't used here.
+2. **A genuinely new shape: one collected fact is smaller than one API
+   response entry, not bigger.** Every prior collector's fact granularity
+   matched or was coarser than the API's own response shape (one
+   `Bucket`, one `IAMUser`, one `Trail`). A security group's rule set
+   nests CIDR ranges inside a permission (protocol + port range) inside
+   the group; `flattenPermissions` explicitly un-nests this so each
+   (security group, direction, protocol, port range, CIDR) combination
+   is its own independently-provenanced `SecurityGroupRule` - the
+   granularity a future "is 0.0.0.0/0 open on port 22" predicate needs
+   to check directly, not reconstruct by re-grouping flattened rows back
+   into AWS's original nested shape.
+
+Deliberately scoped to IPv4 CIDR ranges only for this first pass - IPv6
+ranges and cross-security-group references (`UserIdGroupPairs`) are
+real rule sources this collector does not model at all yet, the same
+"collect what's tractable now, defer the rest honestly" treatment
+server access logging got above, not a completeness claim.
+
+Mapped to SC-7(5) (Deny by Default - Allow by Exception): confirmed
+against the vendored FedRAMP dataset (`KSI-CNA-RNT`, `KSI-CNA-MAT` both
+cite `sc-7.5`) before proposing, the same dataset-first discipline the
+Okta collectors' AC-2(4)/AC-6(5) mappings established
+(`docs/adr/0015`). VPC/subnet topology (FR-3.4's other half - a graph,
+not a flat rule list) is deliberately a separate follow-on collector,
+not bundled here.

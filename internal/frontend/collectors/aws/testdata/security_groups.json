@@ -1,0 +1,46 @@
+[
+  {
+    "group_id": "sg-open-ssh",
+    "vpc_id": "vpc-1",
+    "ingress": [
+      {
+        "protocol": "tcp",
+        "from_port": 22,
+        "to_port": 22,
+        "cidrs": ["0.0.0.0/0"]
+      }
+    ],
+    "egress": []
+  },
+  {
+    "group_id": "sg-restricted",
+    "vpc_id": "vpc-1",
+    "ingress": [
+      {
+        "protocol": "tcp",
+        "from_port": 443,
+        "to_port": 443,
+        "cidrs": ["10.0.0.0/16", "10.1.0.0/16"]
+      }
+    ],
+    "egress": [
+      {
+        "protocol": "-1",
+        "cidrs": ["0.0.0.0/0"]
+      }
+    ]
+  },
+  {
+    "group_id": "sg-peer-only",
+    "vpc_id": "vpc-1",
+    "ingress": [
+      {
+        "protocol": "tcp",
+        "from_port": 5432,
+        "to_port": 5432,
+        "source_group_ids": ["sg-restricted"]
+      }
+    ],
+    "egress": []
+  }
+]
