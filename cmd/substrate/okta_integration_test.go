@@ -88,7 +88,7 @@ func TestOktaEvidenceFlowsThroughRealCompile(t *testing.T) {
 
 	runtimeDir := filepath.Join(t.TempDir(), "runtime")
 	okta := &oktaResults{MFA: mfaGraph, SessionPolicy: sessionGraph, Provisioning: provisioningGraph, AdminRole: adminRoleGraph}
-	if _, err := writeCollectOutput(runtimeDir, &awscollectors.S3Graph{}, &awscollectors.IAMGraph{}, &awscollectors.CloudTrailGraph{}, &awscollectors.SecurityGroupsGraph{}, &awscollectors.SubnetsGraph{}, okta); err != nil {
+	if _, err := writeCollectOutput(runtimeDir, &awscollectors.S3Graph{}, &awscollectors.IAMGraph{}, &awscollectors.CloudTrailGraph{}, &awscollectors.SecurityGroupsGraph{}, &awscollectors.SubnetsGraph{}, &awscollectors.GuardDutyGraph{}, okta); err != nil {
 		t.Fatalf("writeCollectOutput: %v", err)
 	}
 
