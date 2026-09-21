@@ -44,7 +44,7 @@ const (
 // checks the two match automatically yet" caveat
 // docs/aws-readonly-policy.json's own doc comment already carries for
 // AWS.
-var oktaScopes = []string{"okta.policies.read", "okta.logs.read", "okta.users.read"}
+var oktaScopes = []string{"okta.policies.read", "okta.logs.read", "okta.users.read", "okta.roles.read"}
 
 // oktaEventsDefaultLookbackHours is how far back --okta-events-since
 // looks for provisioning/deprovisioning events when not given

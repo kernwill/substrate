@@ -18,7 +18,23 @@ commit, not as a precedent for skipping it next time.
 | MFA enrollment (`mfa.go`) | `GET /api/v1/policies?type=MFA_ENROLL` | `okta.policies.read` |
 | Session policy (`sessionpolicy.go`) | `GET /api/v1/policies?type=OKTA_SIGN_ON`, `GET /api/v1/policies/{id}/rules` | `okta.policies.read` |
 | Provisioning/deprovisioning events (`provisioning.go`) | `GET /api/v1/logs` | `okta.logs.read` |
-| Admin role assignments (`adminrole.go`) | `GET /api/v1/users`, `GET /api/v1/users/{id}/roles` | `okta.users.read` |
+| Admin role assignments (`adminrole.go`) | `GET /api/v1/users` | `okta.users.read` |
+| Admin role assignments (`adminrole.go`) | `GET /api/v1/users/{id}/roles` | `okta.roles.read` |
+
+`GET /api/v1/users/{id}/roles` needs its own scope, `okta.roles.read`, not
+`okta.users.read` - confirmed 2026-09-21 against Okta's own OAuth 2.0 scope
+reference (https://developer.okta.com/docs/api/oauth2/), which describes
+`okta.roles.read` as covering read access to a user's administrative role
+assignments. This was the wrong initial guess in this file's first version
+(reasoned from "role assignment is nested under the Users API namespace,"
+which turned out not to be how Okta scopes this operation) - resolved by
+checking the actual reference doc rather than left as a standing
+assumption, per this project's "don't reason from stale assumptions...
+check the live dashboard/docs" discipline. Still not exercised against a
+live org or self-test fixture end to end - the scope *name* is now
+verified from the docs, but a real API Services app has never actually
+been granted it and made a real call, which is a different kind of
+verification.
 
 Combined scope list for an API Services app running all four collectors:
 
@@ -26,15 +42,5 @@ Combined scope list for an API Services app running all four collectors:
 okta.policies.read
 okta.logs.read
 okta.users.read
+okta.roles.read
 ```
-
-## Unverified
-
-The exact scope name for `GET /api/v1/users/{id}/roles` specifically
-(as opposed to the base `/api/v1/users` read) has not been confirmed
-against a live Okta org or Okta's current scope reference - `okta.users.read`
-is believed correct (role assignment is nested under the Users API
-namespace) but not yet exercised end to end. Confirm against a real org
-before relying on this table for a customer's actual app provisioning,
-the same "not yet exercised by any fixture or self-test org" caveat
-`client.go`'s pagination comments already carry for these same endpoints.
