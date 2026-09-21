@@ -253,3 +253,27 @@ Okta collectors' AC-2(4)/AC-6(5) mappings established
 (`docs/adr/0015`). VPC/subnet topology (FR-3.4's other half - a graph,
 not a flat rule list) is deliberately a separate follow-on collector,
 not bundled here.
+
+**Confirmed by collector five (subnets, FR-3.4's topology half),
+added 2026-09-21 - the deferred half of collector four's own scoping
+note above.** Same narrow-interface pattern (`SubnetsAPI`), same
+no-fan-out single-paginated-call shape security groups established
+(`DescribeSubnets` returns every attribute this collector needs
+inline). Deliberately scoped to a subnet's own attributes only -
+`CidrBlock`, `AvailabilityZone`, `VpcId`, `MapPublicIpOnLaunch` - not
+the full "is this subnet actually public" determination, which needs a
+Subnets -> RouteTables -> InternetGateways join (including AWS's
+implicit main-route-table fallback for a subnet with no explicit
+route table association). That join is real, disclosed follow-on work,
+not attempted here; `MapPublicIpOnLaunch` alone is still a genuine,
+independently meaningful SC-7 fact (governs whether a launched instance
+gets a public IPv4 address at all, regardless of routing), so this
+collector is honestly scoped rather than blocked on the harder problem.
+
+Mapped to base SC-7 (Boundary Protection), not an enhancement - a
+deliberate difference from security groups' SC-7(5): the dataset
+citation check (`KSI-CNA-ULN`, `KSI-SVC-EIS` cite base `sc-7`; `sc-7.3`
+Access Points has only one citation) confirmed base is both the
+better-cited and the honest choice, since this collector's facts don't
+yet support a more specific enhancement-level claim the way security
+groups' deny-by-default rule set directly does.
