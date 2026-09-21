@@ -94,11 +94,15 @@ import (
 // The merged evidence graph is then scored against the vendored FedRAMP
 // Consolidated Rules dataset (internal/rules.Default) by
 // internal/backends/fedramp20x.Evaluate (FR-6.1), written to
-// <out>/ksi_results.json. Only the KSI-SVC family has a real Rego
-// evaluation module today (rego/ksi/svc) - every indicator in the other
-// nine families comes back undetermined with an explicit "not yet
-// implemented" reason rather than being silently omitted, and even
-// KSI-SVC's own indicators will mostly read undetermined for a real
+// <out>/ksi_results.json. Three of the ten KSI families have a real Rego
+// evaluation module today - rego/ksi/svc, rego/ksi/iam, and rego/ksi/cna
+// (see evaluate.go's own doc comment, which is the authoritative list;
+// this comment names them explicitly rather than a count precisely so
+// it can't silently drift out of sync with that one again the way an
+// earlier version of this comment did) - every indicator in the other
+// seven families comes back undetermined with an explicit "not yet
+// implemented" reason rather than being silently omitted, and even a
+// module that exists will mostly read undetermined for a real
 // repository today, honestly, since the frontends above evidence only a
 // handful of the many controls each indicator references. See
 // docs/adr/0007 for why that's the deliberate, honest state of the
