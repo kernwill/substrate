@@ -406,3 +406,44 @@ extra precision is load-bearing, not defensive over-caution.
 FR-3.6 (AWS Config, GuardDuty, Security Hub - enablement and findings)
 is now enablement-complete across all three services; findings for all
 three remain deliberately deferred as a larger, separate follow-on.
+
+**Confirmed by collector nine (KMS rotation, FR-3.3's rotation half),
+added 2026-09-21.** Same list-then-per-item-fan-out shape `CollectIAM`
+established, but three calls deep for the first time: `ListKeys`, then
+per-key `DescribeKey` (to resolve `KeyManager` and filter to
+customer-managed keys only - AWS-managed keys' rotation isn't
+customer-configurable at all, so including them would only add
+non-actionable "always true" noise), then `GetKeyRotationStatus` for
+whichever keys survive that filter.
+
+A deliberate "don't pre-guess eligibility" choice: automatic rotation
+is documented as unsupported for asymmetric keys, HMAC keys, keys with
+imported material, and keys in custom key stores, but this collector
+does not attempt to filter by `KeySpec`/`KeyUsage`/`Origin` to predict
+which keys `GetKeyRotationStatus` will accept - that classification
+could be incomplete or drift from AWS's own list over time. Instead it
+calls the live API for every customer-managed key and records whatever
+comes back, treating a real failure as genuinely `Unresolved` rather
+than assuming "this key type doesn't support rotation" from the key's
+own static attributes - the same "check the live behavior, don't guess
+from a static assumption about a platform's limits" discipline this
+project applies everywhere, not just at collector-design time.
+
+Mapped to base SC-12 (Cryptographic Key Establishment and Management) -
+cited by `KSI-SVC-ASM` ("management, protection, and regular rotation
+of digital keys... is automated and persistently reviewed"), close to
+a verbatim description of what this collector evidences. Key policy
+documents (FR-3.3's other named concern) are deliberately deferred: a
+real IAM-style JSON policy needs actual policy-evaluation logic to be a
+meaningful fact, not just a status flag, the same "collect what's
+cleanly measurable now" scoping every multi-part FR-3 item in this file
+has used (security groups' IPv6/cross-refs, subnets' routing join,
+FR-3.6's findings).
+
+`docs/aws-readonly-policy.json` gained its first KMS statements, split
+account-level (`kms:ListKeys`, `Resource: "*"`, no resource-level
+permissions exist for a list operation) from key-level
+(`kms:DescribeKey`/`kms:GetKeyRotationStatus`, scoped to
+`arn:*:kms:*:*:key/*`) - the same account-level/resource-level split
+this file's own S3 section established for `ListAllMyBuckets` versus
+the per-bucket actions, applied here for the first time since S3.

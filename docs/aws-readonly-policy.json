@@ -71,6 +71,18 @@
       "Effect": "Allow",
       "Action": ["securityhub:DescribeHub"],
       "Resource": "*"
+    },
+    {
+      "Sid": "SubstrateKMSCollectorAccountLevel",
+      "Effect": "Allow",
+      "Action": ["kms:ListKeys"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "SubstrateKMSCollectorKeyLevel",
+      "Effect": "Allow",
+      "Action": ["kms:DescribeKey", "kms:GetKeyRotationStatus"],
+      "Resource": ["arn:*:kms:*:*:key/*"]
     }
   ]
 }

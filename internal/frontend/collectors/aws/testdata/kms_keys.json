@@ -1,0 +1,29 @@
+{
+  "key-customer-rotated": {
+    "arn": "arn:aws:kms:us-east-1:123456789012:key/key-customer-rotated",
+    "key_manager": "CUSTOMER",
+    "key_state": "Enabled",
+    "rotation_enabled": true
+  },
+  "key-customer-not-rotated": {
+    "arn": "arn:aws:kms:us-east-1:123456789012:key/key-customer-not-rotated",
+    "key_manager": "CUSTOMER",
+    "key_state": "Enabled",
+    "rotation_enabled": false
+  },
+  "key-aws-managed": {
+    "arn": "arn:aws:kms:us-east-1:123456789012:key/key-aws-managed",
+    "key_manager": "AWS",
+    "key_state": "Enabled",
+    "rotation_enabled": true
+  },
+  "key-customer-error": {
+    "arn": "arn:aws:kms:us-east-1:123456789012:key/key-customer-error",
+    "key_manager": "CUSTOMER",
+    "key_state": "Enabled",
+    "rotation_error": "AccessDeniedException: not authorized to perform kms:GetKeyRotationStatus"
+  },
+  "key-describe-error": {
+    "describe_error": "AccessDeniedException: not authorized to perform kms:DescribeKey"
+  }
+}
