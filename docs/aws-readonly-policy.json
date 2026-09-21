@@ -65,6 +65,12 @@
       "Effect": "Allow",
       "Action": ["config:DescribeConfigurationRecorderStatus"],
       "Resource": "*"
+    },
+    {
+      "Sid": "SubstrateSecurityHubCollector",
+      "Effect": "Allow",
+      "Action": ["securityhub:DescribeHub"],
+      "Resource": "*"
     }
   ]
 }

@@ -374,3 +374,35 @@ establish. RecordingGroup detail (whether the recorder covers all
 resource types or a narrow subset) is deliberately not collected yet -
 FR-3.6's separate, deferred findings half, the same enablement-only
 scoping GuardDuty already established.
+
+**Confirmed by collector eight (Security Hub enablement, FR-3.6's third
+and final slice), added 2026-09-21 - this completes FR-3.6.** Same
+single-call shape AWS Config established (`DescribeHub` returns
+everything this collector needs inline). Mapped to base CA-7
+(Continuous Monitoring) - cited by the same `KSI-MLA-EVC` indicator AWS
+Config's CM-6 already feeds, and CA-7's own definition ("continuous
+monitoring program") is Security Hub's literal stated purpose, the
+clearest match of any FR-3.6 control checked across all three services.
+
+A genuinely different confirmed-absence shape from GuardDuty's and AWS
+Config's: `DescribeHub` doesn't return an empty successful response
+when Security Hub isn't enabled, it throws `InvalidAccessException` -
+confirmed against AWS's own documented error behavior (message: "Account
+<id> is not subscribed to AWS Security Hub"), not guessed. Critically,
+`InvalidAccessException` is also returned for unrelated causes (e.g. an
+organization-member account queried before its admin relationship is
+fully established), so this collector matches on the specific message
+text before treating the failure as a confirmed `Present: false`
+rather than a real error - the same "an error's exception type alone
+doesn't tell you what it means, check what the service actually
+documents that specific shape to mean" discipline this file's IAM
+section (`NoSuchEntity`) already established, now confirmed to
+generalize to a message-content check, not just an exception type
+check. Verified in this collector's own tests: reverting to a bare
+exception-type match (dropping the message check) makes the
+"different InvalidAccessException cause" test fail, confirming the
+extra precision is load-bearing, not defensive over-caution.
+
+FR-3.6 (AWS Config, GuardDuty, Security Hub - enablement and findings)
+is now enablement-complete across all three services; findings for all
+three remain deliberately deferred as a larger, separate follow-on.
