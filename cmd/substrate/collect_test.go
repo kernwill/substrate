@@ -32,8 +32,9 @@ func TestWriteCollectOutput(t *testing.T) {
 	guardDutyGraph := &awscollectors.GuardDutyGraph{Detectors: []awscollectors.Detector{{Present: true, DetectorID: "detector-example"}}}
 	configGraph := &awscollectors.ConfigGraph{Recorders: []awscollectors.ConfigRecorder{{Present: true, Name: "config-example"}}}
 	securityHubGraph := &awscollectors.SecurityHubGraph{Hubs: []awscollectors.Hub{{Present: true, HubARN: "hub-example"}}}
+	kmsGraph := &awscollectors.KMSGraph{Keys: []awscollectors.Key{{KeyID: "key-example"}}}
 
-	warning, err := writeCollectOutput(out, s3Graph, iamGraph, cloudTrailGraph, securityGroupsGraph, subnetsGraph, guardDutyGraph, configGraph, securityHubGraph, nil)
+	warning, err := writeCollectOutput(out, s3Graph, iamGraph, cloudTrailGraph, securityGroupsGraph, subnetsGraph, guardDutyGraph, configGraph, securityHubGraph, kmsGraph, nil)
 	if err != nil {
 		t.Fatalf("writeCollectOutput: %v", err)
 	}
@@ -137,6 +138,18 @@ func TestWriteCollectOutput(t *testing.T) {
 		t.Errorf("%s contents = %+v, want one hub named hub-example", awsSecurityHubArtifactName, gotSecurityHub)
 	}
 
+	raw, err = os.ReadFile(filepath.Join(out, awsKMSArtifactName))
+	if err != nil {
+		t.Fatalf("read %s: %v", awsKMSArtifactName, err)
+	}
+	var gotKMS awscollectors.KMSGraph
+	if err := json.Unmarshal(raw, &gotKMS); err != nil {
+		t.Fatalf("parse %s: %v", awsKMSArtifactName, err)
+	}
+	if len(gotKMS.Keys) != 1 || gotKMS.Keys[0].KeyID != "key-example" {
+		t.Errorf("%s contents = %+v, want one key named key-example", awsKMSArtifactName, gotKMS)
+	}
+
 	if _, err := os.Stat(out + ".tmp"); !os.IsNotExist(err) {
 		t.Errorf("out+\".tmp\" = %v, want it gone after a successful write", err)
 	}
@@ -161,6 +174,7 @@ func TestWriteCollectOutputWithOkta(t *testing.T) {
 	guardDutyGraph := &awscollectors.GuardDutyGraph{}
 	configGraph := &awscollectors.ConfigGraph{}
 	securityHubGraph := &awscollectors.SecurityHubGraph{}
+	kmsGraph := &awscollectors.KMSGraph{}
 	okta := &oktaResults{
 		MFA:           &oktacollectors.MFAEnrollmentGraph{Policies: []oktacollectors.MFAEnrollmentPolicy{{ID: "policy-1"}}},
 		SessionPolicy: &oktacollectors.SessionPolicyGraph{Rules: []oktacollectors.SessionPolicyRule{{PolicyID: "sp-1", RuleID: "rule-1"}}},
@@ -168,7 +182,7 @@ func TestWriteCollectOutputWithOkta(t *testing.T) {
 		AdminRole:     &oktacollectors.AdminRoleAssignmentGraph{Users: []oktacollectors.AdminRoleAssignment{{UserID: "user-1"}}},
 	}
 
-	if _, err := writeCollectOutput(out, s3Graph, iamGraph, cloudTrailGraph, securityGroupsGraph, subnetsGraph, guardDutyGraph, configGraph, securityHubGraph, okta); err != nil {
+	if _, err := writeCollectOutput(out, s3Graph, iamGraph, cloudTrailGraph, securityGroupsGraph, subnetsGraph, guardDutyGraph, configGraph, securityHubGraph, kmsGraph, okta); err != nil {
 		t.Fatalf("writeCollectOutput: %v", err)
 	}
 
@@ -204,11 +218,12 @@ func TestWriteCollectOutputRerunLeavesNoBackupDirectory(t *testing.T) {
 	emptyGuardDuty := &awscollectors.GuardDutyGraph{}
 	emptyConfig := &awscollectors.ConfigGraph{}
 	emptySecurityHub := &awscollectors.SecurityHubGraph{}
+	emptyKMS := &awscollectors.KMSGraph{}
 
-	if _, err := writeCollectOutput(out, empty, emptyIAM, emptyCloudTrail, emptySecurityGroups, emptySubnets, emptyGuardDuty, emptyConfig, emptySecurityHub, nil); err != nil {
+	if _, err := writeCollectOutput(out, empty, emptyIAM, emptyCloudTrail, emptySecurityGroups, emptySubnets, emptyGuardDuty, emptyConfig, emptySecurityHub, emptyKMS, nil); err != nil {
 		t.Fatalf("first writeCollectOutput: %v", err)
 	}
-	if _, err := writeCollectOutput(out, empty, emptyIAM, emptyCloudTrail, emptySecurityGroups, emptySubnets, emptyGuardDuty, emptyConfig, emptySecurityHub, nil); err != nil {
+	if _, err := writeCollectOutput(out, empty, emptyIAM, emptyCloudTrail, emptySecurityGroups, emptySubnets, emptyGuardDuty, emptyConfig, emptySecurityHub, emptyKMS, nil); err != nil {
 		t.Fatalf("second writeCollectOutput: %v", err)
 	}
 
