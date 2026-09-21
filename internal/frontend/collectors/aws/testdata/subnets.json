@@ -12,5 +12,19 @@
     "cidr": "10.0.2.0/24",
     "availability_zone": "us-east-1b",
     "map_public_ip_on_launch": false
+  },
+  {
+    "subnet_id": "subnet-fallback",
+    "vpc_id": "vpc-1",
+    "cidr": "10.0.3.0/24",
+    "availability_zone": "us-east-1c",
+    "map_public_ip_on_launch": false
+  },
+  {
+    "subnet_id": "subnet-orphan",
+    "vpc_id": "vpc-2",
+    "cidr": "10.1.1.0/24",
+    "availability_zone": "us-east-1a",
+    "map_public_ip_on_launch": false
   }
 ]

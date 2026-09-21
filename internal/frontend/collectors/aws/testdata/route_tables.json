@@ -1,0 +1,35 @@
+[
+  {
+    "route_table_id": "rt-public",
+    "vpc_id": "vpc-1",
+    "associations": [
+      { "subnet_id": "subnet-public", "main": false }
+    ],
+    "routes": [
+      { "gateway_id": "local", "destination_cidr": "10.0.0.0/16" },
+      { "gateway_id": "igw-1", "destination_cidr": "0.0.0.0/0" }
+    ]
+  },
+  {
+    "route_table_id": "rt-private",
+    "vpc_id": "vpc-1",
+    "associations": [
+      { "subnet_id": "subnet-private", "main": false }
+    ],
+    "routes": [
+      { "gateway_id": "local", "destination_cidr": "10.0.0.0/16" },
+      { "gateway_id": "nat-1", "destination_cidr": "0.0.0.0/0" }
+    ]
+  },
+  {
+    "route_table_id": "rt-main",
+    "vpc_id": "vpc-1",
+    "associations": [
+      { "main": true }
+    ],
+    "routes": [
+      { "gateway_id": "local", "destination_cidr": "10.0.0.0/16" },
+      { "gateway_id": "igw-1", "destination_cidr": "0.0.0.0/0" }
+    ]
+  }
+]

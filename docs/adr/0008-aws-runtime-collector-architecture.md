@@ -277,3 +277,34 @@ Access Points has only one citation) confirmed base is both the
 better-cited and the honest choice, since this collector's facts don't
 yet support a more specific enhancement-level claim the way security
 groups' deny-by-default rule set directly does.
+
+**The deferred routing join, done same-session 2026-09-21.** Added
+`DescribeRouteTables` to `SubnetsAPI` and the
+Subnets -> RouteTables -> InternetGateways join the paragraph above
+disclosed as not-yet-attempted: `resolveSubnetRouting` finds each
+subnet's governing route table (its explicit association, or the VPC's
+main route table if it has none - AWS's own documented fallback, not
+this package's invention) and checks it for a route whose `GatewayId`
+is prefixed `igw-`, recording the matched route's actual destination
+CIDR rather than assuming `0.0.0.0/0`. Recorded as a second,
+independently-provenanced fact (`SubnetRouting`, mapped to its own
+`aws_subnet_routing` IR node) rather than added as fields on `Subnet`
+directly - the same `Bucket.Encryption`/`PublicAccessBlock`/`Logging`
+shape this file's own S3 section established, so a route table this
+collector genuinely cannot resolve (no explicit association and no
+main table found for the VPC at all - never actually produced by a
+well-formed AWS account, but not assumed here) becomes an `Unresolved`
+routing fact without touching the subnet's own already-resolved
+CIDR/AZ/`MapPublicIpOnLaunch` node. Deliberately did not collapse an
+unresolved join into `HasInternetGatewayRoute: false` - the same
+"absence of evidence is not evidence of compliance" mistake `CollectS3`'s
+`GetPublicAccessBlock` nuance already warns against in this file,
+verified in this collector's own tests by breaking that exact path and
+confirming it fails loudly.
+
+Still mapped to base SC-7, not upgraded to SC-7(3) (Access Points) now
+that routing resolves: SC-7(3) requires evidence that external network
+connections are limited to a *managed, monitored* set, which one
+subnet's own routing fact doesn't establish by itself - this session's
+work is a richer measurement under the control already approved above,
+not a new compliance-content decision requiring its own approval round.

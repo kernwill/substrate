@@ -51,7 +51,7 @@
     {
       "Sid": "SubstrateSubnetsCollector",
       "Effect": "Allow",
-      "Action": ["ec2:DescribeSubnets"],
+      "Action": ["ec2:DescribeSubnets", "ec2:DescribeRouteTables"],
       "Resource": "*"
     }
   ]
