@@ -27,6 +27,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.3 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.3 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/configservice v1.74.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.335.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/guardduty v1.94.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.19 // indirect

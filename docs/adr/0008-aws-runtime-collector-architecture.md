@@ -349,3 +349,28 @@ collector only resolves whether a detector exists and is on, not that
 it is actually generating alerts (FR-3.6's separate, deferred findings
 half) - the same "don't claim more than the collected fact supports"
 discipline as security groups' SC-7(5) vs. subnets' base SC-7 split.
+
+**Confirmed by collector seven (AWS Config enablement, FR-3.6's second
+slice), added 2026-09-21.** Same narrow-interface pattern (`ConfigAPI`),
+same fixture testing, same `Present: false` confirmed-absence discipline
+GuardDuty established one collector earlier - reused deliberately, not
+independently reinvented, confirming that nuance generalizes rather
+than being a GuardDuty-specific one-off.
+
+Simpler API shape than every prior multi-item collector, GuardDuty
+included: `DescribeConfigurationRecorderStatus` alone returns each
+recorder's name, `Recording` bool, and last status inline, with no
+second per-item detail call needed at all - not even CloudTrail's or
+GuardDuty's list-then-detail fan-out, just one call.
+
+Mapped to base CM-6 (Configuration Settings), not CM-2 (Baseline
+Configuration) - both cited by `KSI-MLA-EVC` ("configuration...
+persistently evaluated and tested," almost AWS Config's job
+description) with similar total citation counts, but CM-6's "monitor
+and control changes to configuration settings" is the closer semantic
+fit for what a recorder's on/off status evidences; CM-2 is about
+defining and documenting a baseline, which this collector's facts don't
+establish. RecordingGroup detail (whether the recorder covers all
+resource types or a narrow subset) is deliberately not collected yet -
+FR-3.6's separate, deferred findings half, the same enablement-only
+scoping GuardDuty already established.

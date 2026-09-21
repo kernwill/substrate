@@ -59,6 +59,12 @@
       "Effect": "Allow",
       "Action": ["guardduty:ListDetectors", "guardduty:GetDetector"],
       "Resource": "*"
+    },
+    {
+      "Sid": "SubstrateConfigCollector",
+      "Effect": "Allow",
+      "Action": ["config:DescribeConfigurationRecorderStatus"],
+      "Resource": "*"
     }
   ]
 }
