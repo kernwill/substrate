@@ -17,17 +17,19 @@ import (
 )
 
 // TestWriteCollectOutput exercises the real logic in this command
-// (writing and atomically publishing collect's three artifacts) against
+// (writing and atomically publishing collect's artifacts) against
 // synthetic graphs, with no AWS credentials or client involved -
-// CollectS3, CollectIAM, and CollectCloudTrail already have their own
-// thorough, fixture-backed tests in internal/frontend/collectors/aws.
+// CollectS3, CollectIAM, CollectCloudTrail, and CollectSecurityGroups
+// already have their own thorough, fixture-backed tests in
+// internal/frontend/collectors/aws.
 func TestWriteCollectOutput(t *testing.T) {
 	out := filepath.Join(t.TempDir(), "out")
 	s3Graph := &awscollectors.S3Graph{Buckets: []awscollectors.Bucket{{Name: "example-bucket"}}}
 	iamGraph := &awscollectors.IAMGraph{Users: []awscollectors.IAMUser{{Name: "example-user"}}}
 	cloudTrailGraph := &awscollectors.CloudTrailGraph{Trails: []awscollectors.Trail{{Name: "example-trail"}}}
+	securityGroupsGraph := &awscollectors.SecurityGroupsGraph{Rules: []awscollectors.SecurityGroupRule{{SecurityGroupID: "sg-example"}}}
 
-	warning, err := writeCollectOutput(out, s3Graph, iamGraph, cloudTrailGraph, nil)
+	warning, err := writeCollectOutput(out, s3Graph, iamGraph, cloudTrailGraph, securityGroupsGraph, nil)
 	if err != nil {
 		t.Fatalf("writeCollectOutput: %v", err)
 	}
@@ -71,6 +73,18 @@ func TestWriteCollectOutput(t *testing.T) {
 		t.Errorf("%s contents = %+v, want one trail named example-trail", awsCloudTrailArtifactName, gotCloudTrail)
 	}
 
+	raw, err = os.ReadFile(filepath.Join(out, awsSecurityGroupsArtifactName))
+	if err != nil {
+		t.Fatalf("read %s: %v", awsSecurityGroupsArtifactName, err)
+	}
+	var gotSecurityGroups awscollectors.SecurityGroupsGraph
+	if err := json.Unmarshal(raw, &gotSecurityGroups); err != nil {
+		t.Fatalf("parse %s: %v", awsSecurityGroupsArtifactName, err)
+	}
+	if len(gotSecurityGroups.Rules) != 1 || gotSecurityGroups.Rules[0].SecurityGroupID != "sg-example" {
+		t.Errorf("%s contents = %+v, want one rule for sg-example", awsSecurityGroupsArtifactName, gotSecurityGroups)
+	}
+
 	if _, err := os.Stat(out + ".tmp"); !os.IsNotExist(err) {
 		t.Errorf("out+\".tmp\" = %v, want it gone after a successful write", err)
 	}
@@ -90,6 +104,7 @@ func TestWriteCollectOutputWithOkta(t *testing.T) {
 	s3Graph := &awscollectors.S3Graph{}
 	iamGraph := &awscollectors.IAMGraph{}
 	cloudTrailGraph := &awscollectors.CloudTrailGraph{}
+	securityGroupsGraph := &awscollectors.SecurityGroupsGraph{}
 	okta := &oktaResults{
 		MFA:           &oktacollectors.MFAEnrollmentGraph{Policies: []oktacollectors.MFAEnrollmentPolicy{{ID: "policy-1"}}},
 		SessionPolicy: &oktacollectors.SessionPolicyGraph{Rules: []oktacollectors.SessionPolicyRule{{PolicyID: "sp-1", RuleID: "rule-1"}}},
@@ -97,7 +112,7 @@ func TestWriteCollectOutputWithOkta(t *testing.T) {
 		AdminRole:     &oktacollectors.AdminRoleAssignmentGraph{Users: []oktacollectors.AdminRoleAssignment{{UserID: "user-1"}}},
 	}
 
-	if _, err := writeCollectOutput(out, s3Graph, iamGraph, cloudTrailGraph, okta); err != nil {
+	if _, err := writeCollectOutput(out, s3Graph, iamGraph, cloudTrailGraph, securityGroupsGraph, okta); err != nil {
 		t.Fatalf("writeCollectOutput: %v", err)
 	}
 
@@ -128,11 +143,12 @@ func TestWriteCollectOutputRerunLeavesNoBackupDirectory(t *testing.T) {
 	empty := &awscollectors.S3Graph{}
 	emptyIAM := &awscollectors.IAMGraph{}
 	emptyCloudTrail := &awscollectors.CloudTrailGraph{}
+	emptySecurityGroups := &awscollectors.SecurityGroupsGraph{}
 
-	if _, err := writeCollectOutput(out, empty, emptyIAM, emptyCloudTrail, nil); err != nil {
+	if _, err := writeCollectOutput(out, empty, emptyIAM, emptyCloudTrail, emptySecurityGroups, nil); err != nil {
 		t.Fatalf("first writeCollectOutput: %v", err)
 	}
-	if _, err := writeCollectOutput(out, empty, emptyIAM, emptyCloudTrail, nil); err != nil {
+	if _, err := writeCollectOutput(out, empty, emptyIAM, emptyCloudTrail, emptySecurityGroups, nil); err != nil {
 		t.Fatalf("second writeCollectOutput: %v", err)
 	}
 
