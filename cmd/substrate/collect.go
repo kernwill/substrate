@@ -18,6 +18,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/guardduty"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/securityhub"
 	"golang.org/x/sync/errgroup"
 
 	awscollectors "github.com/kernwill/substrate/internal/frontend/collectors/aws"
@@ -38,6 +39,7 @@ const (
 	awsSubnetsArtifactName        = "aws_subnets.json"
 	awsGuardDutyArtifactName      = "aws_guardduty.json"
 	awsConfigArtifactName         = "aws_config.json"
+	awsSecurityHubArtifactName    = "aws_securityhub.json"
 
 	oktaMFAArtifactName           = "okta_mfa.json"
 	oktaSessionPolicyArtifactName = "okta_session_policy.json"
@@ -177,11 +179,11 @@ func runCollect(args []string, stdout, stderr io.Writer) int {
 	}
 
 	// S3, IAM, CloudTrail, security groups, subnets, GuardDuty, AWS
-	// Config, and (if configured) the four Okta collectors are all
-	// independent, so collect everything concurrently rather than paying
-	// every service's full latency back to back - the same reasoning
-	// concurrent.go's collectConcurrent already applies one level down,
-	// inside each collector, to its own per-item API calls.
+	// Config, Security Hub, and (if configured) the four Okta collectors
+	// are all independent, so collect everything concurrently rather
+	// than paying every service's full latency back to back - the same
+	// reasoning concurrent.go's collectConcurrent already applies one
+	// level down, inside each collector, to its own per-item API calls.
 	var s3Graph *awscollectors.S3Graph
 	var iamGraph *awscollectors.IAMGraph
 	var cloudTrailGraph *awscollectors.CloudTrailGraph
@@ -189,6 +191,7 @@ func runCollect(args []string, stdout, stderr io.Writer) int {
 	var subnetsGraph *awscollectors.SubnetsGraph
 	var guardDutyGraph *awscollectors.GuardDutyGraph
 	var configGraph *awscollectors.ConfigGraph
+	var securityHubGraph *awscollectors.SecurityHubGraph
 	var okta *oktaResults
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
@@ -247,6 +250,14 @@ func runCollect(args []string, stdout, stderr io.Writer) int {
 		}
 		return nil
 	})
+	g.Go(func() error {
+		var err error
+		securityHubGraph, err = awscollectors.CollectSecurityHub(gctx, securityhub.NewFromConfig(cfg), observedAt)
+		if err != nil {
+			return fmt.Errorf("collect securityhub: %w", err)
+		}
+		return nil
+	})
 	if oktaClient != nil {
 		since := observedAt.Add(-time.Duration(*oktaEventsSinceHours) * time.Hour)
 		results := &oktaResults{}
@@ -289,7 +300,7 @@ func runCollect(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	warning, err := writeCollectOutput(*out, s3Graph, iamGraph, cloudTrailGraph, securityGroupsGraph, subnetsGraph, guardDutyGraph, configGraph, okta)
+	warning, err := writeCollectOutput(*out, s3Graph, iamGraph, cloudTrailGraph, securityGroupsGraph, subnetsGraph, guardDutyGraph, configGraph, securityHubGraph, okta)
 	if err != nil {
 		fmt.Fprintf(stderr, "substrate collect: %v\n", err)
 		return 2
@@ -298,8 +309,8 @@ func runCollect(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "substrate collect: warning: %s\n", warning)
 	}
 
-	summary := fmt.Sprintf("collected %d s3 bucket(s), %d iam user(s), %d cloudtrail trail(s), %d security group rule(s), %d subnet(s), %d guardduty detector(s), and %d config recorder(s)",
-		len(s3Graph.Buckets), len(iamGraph.Users), len(cloudTrailGraph.Trails), len(securityGroupsGraph.Rules), len(subnetsGraph.Subnets), len(guardDutyGraph.Detectors), len(configGraph.Recorders))
+	summary := fmt.Sprintf("collected %d s3 bucket(s), %d iam user(s), %d cloudtrail trail(s), %d security group rule(s), %d subnet(s), %d guardduty detector(s), %d config recorder(s), and %d securityhub subscription(s)",
+		len(s3Graph.Buckets), len(iamGraph.Users), len(cloudTrailGraph.Trails), len(securityGroupsGraph.Rules), len(subnetsGraph.Subnets), len(guardDutyGraph.Detectors), len(configGraph.Recorders), len(securityHubGraph.Hubs))
 	if okta != nil {
 		summary += fmt.Sprintf("; %d okta mfa policy(ies), %d okta session policy rule(s), %d okta provisioning event(s), and %d okta user(s) with role assignments",
 			len(okta.MFA.Policies), len(okta.SessionPolicy.Rules), len(okta.Provisioning.Events), len(okta.AdminRole.Users))
@@ -339,21 +350,22 @@ func loadOktaPrivateKey(path string) (*rsa.PrivateKey, error) {
 }
 
 // writeCollectOutput writes s3Graph, iamGraph, cloudTrailGraph,
-// securityGroupsGraph, subnetsGraph, guardDutyGraph, and configGraph to
-// their AWS artifact files (always), and okta's four graphs to their
-// own artifact files only when okta is non-nil (Okta collection ran) -
-// published atomically via the same publishOutput/publishFromTmp
-// compile.go's own --out publish uses (see that function's doc comment
-// for the full reasoning), including its non-fatal warning return (a
-// leftover backup directory that couldn't be cleaned up after an
-// otherwise-successful publish; disk space, not a correctness problem,
-// but still worth surfacing to the caller rather than silently
-// discarding). Split out from runCollect so this write/publish logic -
-// the part with real, bug-prone behavior - is directly unit-testable
-// against synthetic graphs, without needing live AWS/Okta credentials or
-// a fake client at the CLI layer; every Collect* function already has
-// its own thorough, fixture-backed tests one level down.
-func writeCollectOutput(out string, s3Graph *awscollectors.S3Graph, iamGraph *awscollectors.IAMGraph, cloudTrailGraph *awscollectors.CloudTrailGraph, securityGroupsGraph *awscollectors.SecurityGroupsGraph, subnetsGraph *awscollectors.SubnetsGraph, guardDutyGraph *awscollectors.GuardDutyGraph, configGraph *awscollectors.ConfigGraph, okta *oktaResults) (warning string, err error) {
+// securityGroupsGraph, subnetsGraph, guardDutyGraph, configGraph, and
+// securityHubGraph to their AWS artifact files (always), and okta's
+// four graphs to their own artifact files only when okta is non-nil
+// (Okta collection ran) - published atomically via the same
+// publishOutput/publishFromTmp compile.go's own --out publish uses (see
+// that function's doc comment for the full reasoning), including its
+// non-fatal warning return (a leftover backup directory that couldn't
+// be cleaned up after an otherwise-successful publish; disk space, not
+// a correctness problem, but still worth surfacing to the caller rather
+// than silently discarding). Split out from runCollect so this
+// write/publish logic - the part with real, bug-prone behavior - is
+// directly unit-testable against synthetic graphs, without needing live
+// AWS/Okta credentials or a fake client at the CLI layer; every
+// Collect* function already has its own thorough, fixture-backed tests
+// one level down.
+func writeCollectOutput(out string, s3Graph *awscollectors.S3Graph, iamGraph *awscollectors.IAMGraph, cloudTrailGraph *awscollectors.CloudTrailGraph, securityGroupsGraph *awscollectors.SecurityGroupsGraph, subnetsGraph *awscollectors.SubnetsGraph, guardDutyGraph *awscollectors.GuardDutyGraph, configGraph *awscollectors.ConfigGraph, securityHubGraph *awscollectors.SecurityHubGraph, okta *oktaResults) (warning string, err error) {
 	tmpOut := out + ".tmp"
 	if err := os.RemoveAll(tmpOut); err != nil {
 		return "", fmt.Errorf("clear stale %s: %w", tmpOut, err)
@@ -387,6 +399,9 @@ func writeCollectOutput(out string, s3Graph *awscollectors.S3Graph, iamGraph *aw
 		return "", err
 	}
 	if err := writeArtifact(tmpOut, awsConfigArtifactName, configGraph); err != nil {
+		return "", err
+	}
+	if err := writeArtifact(tmpOut, awsSecurityHubArtifactName, securityHubGraph); err != nil {
 		return "", err
 	}
 	if okta != nil {
