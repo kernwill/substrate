@@ -1,0 +1,30 @@
+[
+  {
+    "uuid": "evt-1",
+    "published": "2026-09-15T14:30:00.000Z",
+    "eventType": "user.lifecycle.create",
+    "outcome": { "result": "SUCCESS" },
+    "actor": { "id": "actor-1", "type": "User", "displayName": "Jane Admin" },
+    "target": [
+      { "id": "user-1", "type": "User", "displayName": "New Hire" }
+    ]
+  },
+  {
+    "uuid": "evt-2",
+    "published": "2026-09-16T09:15:00.000Z",
+    "eventType": "user.lifecycle.deactivate",
+    "outcome": { "result": "SUCCESS" },
+    "actor": { "id": "actor-2", "type": "System", "displayName": "Okta Workflows" },
+    "target": [
+      { "id": "user-2", "type": "User", "displayName": "Departed Employee" }
+    ]
+  },
+  {
+    "uuid": "",
+    "published": "2026-09-16T10:00:00.000Z",
+    "eventType": "user.lifecycle.suspend",
+    "outcome": { "result": "SUCCESS" },
+    "actor": { "id": "actor-3", "type": "User", "displayName": "Missing UUID" },
+    "target": []
+  }
+]

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 // OktaAPI names the Okta Management API calls this package's collectors
@@ -30,9 +31,16 @@ import (
 // kind of "the live API has a documented behavior nobody had reason to
 // check for until this specific collector" docs/adr/0008 already
 // records for S3/IAM/CloudTrail.
+// ListSystemLogEvents is the third operation this interface names, for
+// provisioning.go's provisioning/deprovisioning event collection - an
+// entirely different Okta resource (the System Log, an audit event
+// stream) from the policy-backed calls above, closer in shape to
+// aws.CloudTrailAPI's live-status read than to anything else in this
+// package.
 type OktaAPI interface {
 	ListPolicies(ctx context.Context, policyType string) ([]RawPolicy, error)
 	ListPolicyRules(ctx context.Context, policyID string) ([]RawPolicyRule, error)
+	ListSystemLogEvents(ctx context.Context, since, until time.Time, eventTypes []string) ([]RawLogEvent, error)
 }
 
 // RawPolicy is one policy object exactly as Okta's Management API
@@ -78,6 +86,33 @@ type RawPolicyRule struct {
 	Status   string          `json:"status"`
 	Priority int             `json:"priority"`
 	Actions  json.RawMessage `json:"actions"`
+}
+
+// RawLogEvent is one event exactly as Okta's System Log API returns it
+// (GET /api/v1/logs), the subset of fields provisioning.go needs -
+// which account, which lifecycle transition, when, by whom, and whether
+// it succeeded.
+type RawLogEvent struct {
+	UUID      string        `json:"uuid"`
+	Published time.Time     `json:"published"`
+	EventType string        `json:"eventType"`
+	Outcome   RawLogOutcome `json:"outcome"`
+	Actor     RawLogActor   `json:"actor"`
+	Target    []RawLogActor `json:"target"`
+}
+
+type RawLogOutcome struct {
+	Result string `json:"result"`
+	Reason string `json:"reason"`
+}
+
+// RawLogActor is used for both an event's actor (who performed it) and
+// its targets (what it was performed on) - Okta's System Log schema
+// gives both the same id/type/displayName shape.
+type RawLogActor struct {
+	ID          string `json:"id"`
+	Type        string `json:"type"`
+	DisplayName string `json:"displayName"`
 }
 
 // RESTClient is OktaAPI's production implementation: authenticated GET
@@ -183,4 +218,52 @@ func (c *RESTClient) ListPolicyRules(ctx context.Context, policyID string) ([]Ra
 		return nil, fmt.Errorf("okta: decoding ListPolicyRules(%s) response: %w", policyID, err)
 	}
 	return rules, nil
+}
+
+// ListSystemLogEvents calls GET /api/v1/logs, filtered to eventTypes and
+// bounded to [since, until). Like ListPolicies, this does not follow the
+// response's Link-header pagination - a real gap for a since/until
+// window wide enough to exceed one page, flagged here rather than
+// silently truncating results; worth a fixture-backed test the first
+// time a real customer window is known to exceed it.
+func (c *RESTClient) ListSystemLogEvents(ctx context.Context, since, until time.Time, eventTypes []string) ([]RawLogEvent, error) {
+	q := url.Values{}
+	q.Set("since", since.UTC().Format(time.RFC3339))
+	q.Set("until", until.UTC().Format(time.RFC3339))
+	if len(eventTypes) > 0 {
+		clauses := make([]string, len(eventTypes))
+		for i, et := range eventTypes {
+			clauses[i] = fmt.Sprintf(`eventType eq %q`, et)
+		}
+		q.Set("filter", strings.Join(clauses, " or "))
+	}
+
+	reqURL := fmt.Sprintf("%s/api/v1/logs?%s", c.orgURL, q.Encode())
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("okta: building ListSystemLogEvents request: %w", err)
+	}
+
+	token, err := c.tokens.Token(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("okta: getting access token: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("okta: ListSystemLogEvents request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("okta: ListSystemLogEvents returned status %d", resp.StatusCode)
+	}
+
+	var events []RawLogEvent
+	if err := json.NewDecoder(resp.Body).Decode(&events); err != nil {
+		return nil, fmt.Errorf("okta: decoding ListSystemLogEvents response: %w", err)
+	}
+	return events, nil
 }
